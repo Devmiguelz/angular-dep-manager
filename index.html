@@ -139,12 +139,14 @@
   .upload-btn:hover { background: var(--accent2); }
 
   #fileInput { display: none; }
+  #auditFileInput { display: none; }
 
   /* CONFIG BAR */
   .config-bar {
     display: none;
     gap: 12px;
     margin-bottom: 32px;
+    margin-top: 32px;
     flex-wrap: wrap;
     align-items: center;
   }
@@ -681,14 +683,36 @@
     </div>
   </header>
 
-  <!-- UPLOAD -->
-  <div class="upload-zone" id="dropZone" onclick="document.getElementById('fileInput').click()">
-    <span class="upload-icon">📦</span>
-    <h2>Carga tu package.json</h2>
-    <p>Arrastra el archivo aquí o haz clic para seleccionarlo</p>
-    <button class="upload-btn" onclick="event.stopPropagation(); document.getElementById('fileInput').click()">Seleccionar archivo</button>
-    <input type="file" id="fileInput" accept=".json" onchange="handleFileSelect(event)">
+  <!-- UPLOAD — two zones -->
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px" id="uploadGrid">
+
+    <!-- Zone 1: package.json -->
+    <div class="upload-zone" id="dropZone" onclick="document.getElementById('fileInput').click()" style="padding:36px 24px">
+      <span class="upload-icon" style="font-size:36px">📦</span>
+      <h2 style="font-size:17px">package.json</h2>
+      <p style="margin-bottom:12px">Requerido — arrastra o selecciona</p>
+      <button class="upload-btn" onclick="event.stopPropagation();document.getElementById('fileInput').click()">Seleccionar</button>
+      <input type="file" id="fileInput" accept=".json" onchange="handleFileSelect(event)">
+      <div id="pkgStatus" style="display:none;margin-top:12px;font-family:var(--mono);font-size:11px;color:var(--ok)">✓ <span id="pkgStatusName"></span></div>
+    </div>
+
+    <!-- Zone 2: audit.json -->
+    <div class="upload-zone" id="auditDropZone" onclick="document.getElementById('auditFileInput').click()" style="padding:36px 24px;border-color:rgba(255,171,64,0.3)">
+      <span class="upload-icon" style="font-size:36px">🛡️</span>
+      <h2 style="font-size:17px">audit.json <span style="color:var(--text3);font-size:12px;font-weight:400">opcional</span></h2>
+      <p style="color:var(--text2);margin-bottom:8px">Corre este comando en la raíz de tu proyecto:</p>
+      <div style="display:flex;align-items:center;gap:8px;background:var(--bg);border:1px solid var(--border2);border-radius:6px;padding:7px 12px;margin:0 auto 12px;width:fit-content" onclick="event.stopPropagation()">
+        <code style="font-family:var(--mono);font-size:11px;color:var(--warn)">npm audit --json &gt; audit.json</code>
+        <button onclick="event.stopPropagation();copyAuditCmd(this)" style="background:transparent;border:1px solid var(--border2);border-radius:3px;padding:2px 8px;font-family:var(--mono);font-size:10px;color:var(--text3);cursor:pointer">📋</button>
+      </div>
+      <button class="upload-btn" style="background:rgba(255,171,64,0.1);border:1px solid rgba(255,171,64,0.4);color:var(--warn)" onclick="event.stopPropagation();document.getElementById('auditFileInput').click()">Cargar audit.json</button>
+      <input type="file" id="auditFileInput" accept=".json" onchange="handleAuditFileSelect(event)">
+      <div id="auditStatus" style="display:none;margin-top:12px;font-family:var(--mono);font-size:11px;color:var(--warn)">✓ <span id="auditStatusName"></span> · <span id="auditStatusCount"></span></div>
+      <div id="auditMissing" style="margin-top:12px;font-family:var(--mono);font-size:10px;color:var(--text3)">Sin audit.json → usará base CVE local</div>
+    </div>
+
   </div>
+  <style>@media(max-width:600px){#uploadGrid{grid-template-columns:1fr}}</style>
 
   <!-- CONFIG BAR -->
   <div class="config-bar" id="configBar">
@@ -866,6 +890,21 @@
       <button class="btn-primary" onclick="downloadJson()">⬇ Descargar package.json</button>
       <button class="btn-secondary" onclick="copyJson()">📋 Copiar JSON</button>
     </div>
+
+    <div style="margin-top:32px;padding-top:24px;border-top:1px solid var(--border)">
+      <div style="font-family:var(--mono);font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:1px;margin-bottom:14px">
+        📊 Reporte de análisis
+      </div>
+      <div style="background:var(--surface);border:1px solid var(--border);border-left:3px solid var(--info);border-radius:10px;padding:16px 20px;margin-bottom:14px;font-family:var(--mono);font-size:11px;color:var(--text2);line-height:2">
+        Incluye: <span style="color:var(--text)">resumen</span> · <span style="color:var(--text)">tabla completa de dependencias</span> · <span style="color:var(--text)">actualizaciones disponibles</span> · <span style="color:var(--text)">overrides sugeridos</span> · <span style="color:var(--text)">comandos npm</span>
+      </div>
+      <div id="reportPreview" style="display:none;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:16px;font-family:var(--mono);font-size:11px;max-height:300px;overflow-y:auto;line-height:1.7;margin-bottom:14px;color:var(--text2)"></div>
+      <div style="display:flex;gap:12px;flex-wrap:wrap">
+        <button class="btn-primary" onclick="downloadAnalysisReport()">⬇ Descargar analysis-report.json</button>
+        <button class="btn-secondary" onclick="previewReport()">👁 Vista previa</button>
+        <button class="btn-secondary" onclick="copyAnalysisReport()">📋 Copiar</button>
+      </div>
+    </div>
   </div>
 
 </div>
@@ -876,7 +915,8 @@
 // ─── STATE ────────────────────────────────────────────────────────────────
 let state = {
   rawJson: null,
-  packages: [],      // {name, currentVersion, latestVersion, type, isAngular, isDev, status}
+  auditJson: null,
+  packages: [],
   overrides: [],
   exportMode: 'updated'
 };
@@ -900,6 +940,16 @@ dropZone.addEventListener('drop', e => {
   if (file && file.name.endsWith('.json')) loadFile(file);
 });
 
+const auditDropZone = document.getElementById('auditDropZone');
+auditDropZone.addEventListener('dragover', e => { e.preventDefault(); auditDropZone.classList.add('dragover'); });
+auditDropZone.addEventListener('dragleave', () => auditDropZone.classList.remove('dragover'));
+auditDropZone.addEventListener('drop', e => {
+  e.preventDefault();
+  auditDropZone.classList.remove('dragover');
+  const file = e.dataTransfer.files[0];
+  if (file && file.name.endsWith('.json')) loadAuditFile(file);
+});
+
 function handleFileSelect(e) {
   const file = e.target.files[0];
   if (file) loadFile(file);
@@ -911,15 +961,56 @@ function loadFile(file) {
     try {
       const json = JSON.parse(e.target.result);
       state.rawJson = json;
+      const count = countDeps(json);
       document.getElementById('fileName').textContent = file.name;
-      dropZone.style.display = 'none';
+      // Show status inside zone, hide zone border effect
+      document.getElementById('pkgStatus').style.display = 'block';
+      document.getElementById('pkgStatusName').textContent = `${file.name} · ${count} deps`;
+      document.getElementById('dropZone').style.borderColor = 'var(--ok)';
       document.getElementById('configBar').classList.add('visible');
-      toast(`✓ ${file.name} cargado — ${countDeps(json)} dependencias encontradas`);
+      toast(`✓ ${file.name} cargado — ${count} dependencias encontradas`);
     } catch {
       toast('❌ JSON inválido', 'danger');
     }
   };
   reader.readAsText(file);
+}
+
+function handleAuditFileSelect(e) {
+  const file = e.target.files[0];
+  if (file) loadAuditFile(file);
+}
+
+function loadAuditFile(file) {
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const json = JSON.parse(e.target.result);
+      // Validate it looks like npm audit output
+      if (!json.advisories && !json.vulnerabilities) {
+        toast('❌ No parece un npm audit --json válido', 'danger');
+        return;
+      }
+      state.auditJson = json;
+      const count = Object.keys(json.advisories || json.vulnerabilities || {}).length;
+      document.getElementById('auditStatus').style.display = 'block';
+      document.getElementById('auditMissing').style.display = 'none';
+      document.getElementById('auditStatusName').textContent = file.name;
+      document.getElementById('auditStatusCount').textContent = `${count} vulnerabilidad${count !== 1 ? 'es' : ''}`;
+      document.getElementById('auditDropZone').style.borderColor = 'var(--warn)';
+      toast(`✓ ${file.name} cargado — ${count} vulnerabilidades`);
+    } catch {
+      toast('❌ JSON inválido', 'danger');
+    }
+  };
+  reader.readAsText(file);
+}
+
+function copyAuditCmd(btn) {
+  navigator.clipboard.writeText('npm audit --json > audit.json').then(() => {
+    btn.textContent = '✓';
+    setTimeout(() => btn.textContent = '📋', 2000);
+  });
 }
 
 function countDeps(json) {
@@ -1132,68 +1223,64 @@ async function detectOverrides() {
 
   const nonExcluded = state.packages.filter(p => !p.excluded);
 
-  // ── 1. Try npm audit API ───────────────────────────────────────────────
-  try {
-    // Build requires map from current packages
-    const requires = {};
-    const dependencies = {};
-    nonExcluded.forEach(pkg => {
-      requires[pkg.name] = pkg.currentVersion;
-      dependencies[pkg.name] = { version: pkg.currentVersion };
-    });
+  // ── 1. Parse loaded audit.json (from npm audit --json > audit.json) ────
+  if (state.auditJson) {
+    const auditData = state.auditJson;
+    state.auditResults = auditData;
+    const added = new Set();
 
-    const auditPayload = {
-      name: state.rawJson.name || 'project',
-      version: state.rawJson.version || '0.0.0',
-      requires,
-      dependencies
-    };
+    // npm audit v6 format: { advisories: { "id": { module_name, ... } } }
+    // npm audit v7+ format: { vulnerabilities: { "name": { ... } } }
+    const advisories = auditData.advisories || {};
+    const vulnerabilities = auditData.vulnerabilities || {};
 
-    const auditResp = await fetch('https://registry.npmjs.org/-/npm/v1/security/audits/quick', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(auditPayload)
-    });
+    // ── v6 format ────────────────────────────────────────────────────────
+    for (const advisory of Object.values(advisories)) {
+      const pkgName = advisory.module_name;
+      if (!pkgName || added.has(pkgName)) continue;
+      added.add(pkgName);
 
-    if (auditResp.ok) {
-      const auditData = await auditResp.json();
-      state.auditResults = auditData;
+      let fixVersion = advisory.patched_versions || '>=0.0.0';
+      if (fixVersion === '<0.0.0' || fixVersion === '') fixVersion = 'sin-fix-disponible';
 
-      // Parse advisories from npm audit response
-      const advisories = auditData.advisories || {};
-      const added = new Set();
-
-      for (const advisory of Object.values(advisories)) {
-        const pkgName = advisory.module_name;
-        if (added.has(pkgName)) continue;
-        added.add(pkgName);
-
-        // Find recommended fix version
-        let fixVersion = advisory.patched_versions || '>=0.0.0';
-        // Clean up: npm returns things like ">=7.5.2" which is perfect for overrides
-        if (fixVersion === '<0.0.0') fixVersion = 'latest'; // unfixed
-
-        const severity = advisory.severity || 'moderate';
-        const cves = (advisory.cves || []).join(', ') || null;
-
-        state.overrides.push({
-          name: pkgName,
-          currentVersion: nonExcluded.find(p => p.name === pkgName)?.currentVersion || '?',
-          fixVersion,
-          reason: advisory.title || advisory.overview?.slice(0, 80) || 'Vulnerabilidad detectada por npm audit',
-          severity,
-          cve: cves,
-          source: 'npm-audit',
-          url: advisory.url || null
-        });
-      }
+      state.overrides.push({
+        name: pkgName,
+        currentVersion: nonExcluded.find(p => p.name === pkgName)?.currentVersion || advisory.findings?.[0]?.version || '?',
+        fixVersion,
+        reason: advisory.title || 'Vulnerabilidad detectada por npm audit',
+        severity: advisory.severity || 'moderate',
+        cve: (advisory.cves || []).join(', ') || null,
+        source: 'npm-audit-file',
+        url: advisory.url || null,
+        overview: advisory.overview?.slice(0, 200) || null
+      });
     }
-  } catch (e) {
-    // npm audit API failed — fallback to local CVE database
-    console.warn('npm audit API no disponible, usando base local', e);
+
+    // ── v7+ format ───────────────────────────────────────────────────────
+    for (const [pkgName, vuln] of Object.entries(vulnerabilities)) {
+      if (added.has(pkgName)) continue;
+      added.add(pkgName);
+
+      const via = Array.isArray(vuln.via) ? vuln.via.filter(v => typeof v === 'object') : [];
+      const firstVia = via[0] || {};
+      const fixVersion = vuln.fixAvailable?.version
+        ? `>=${vuln.fixAvailable.version}`
+        : (vuln.fixAvailable ? 'latest' : 'sin-fix-disponible');
+
+      state.overrides.push({
+        name: pkgName,
+        currentVersion: nonExcluded.find(p => p.name === pkgName)?.currentVersion || '?',
+        fixVersion,
+        reason: firstVia.title || `Vulnerabilidad en ${pkgName}`,
+        severity: vuln.severity || 'moderate',
+        cve: firstVia.cves?.join(', ') || null,
+        source: 'npm-audit-file',
+        url: firstVia.url || null
+      });
+    }
   }
 
-  // ── 2. Layer on top: local CVE database (fill gaps not found by audit) ─
+  // ── 2. Layer: local CVE database (only if no audit file loaded) ────────
   const auditNames = new Set(state.overrides.map(o => o.name));
   const allDepNames = new Set(nonExcluded.map(p => p.name));
 
@@ -1571,6 +1658,144 @@ function copyJson() {
   copyText(null, JSON.stringify(state.currentExportJson, null, 2));
 }
 
+// ─── ANALYSIS REPORT ─────────────────────────────────────────────────────
+function buildAnalysisReport() {
+  if (!state.packages.length) return null;
+
+  const analyzable = state.packages.filter(p => !p.excluded && p.status !== 'excluded');
+  const excluded   = state.packages.filter(p =>  p.excluded || p.status === 'excluded');
+  const upToDate   = analyzable.filter(p => p.status === 'ok');
+  const outdated   = analyzable.filter(p => p.status === 'outdated');
+  const errors     = analyzable.filter(p => p.status === 'error');
+  const newOverrides    = state.overrides.filter(o => !state.existingOverrides?.[o.name]);
+  const appliedOverrides = state.overrides.filter(o =>  state.existingOverrides?.[o.name]);
+
+  const flag = document.getElementById('installFlag').value;
+  const flagStr = flag ? ` ${flag}` : '';
+  const projectName = state.rawJson?.name || 'project';
+
+  return {
+    meta: {
+      project:        projectName,
+      analyzedAt:     new Date().toISOString(),
+      majorVersion:   document.getElementById('majorVersion').value,
+      installFlag:    flag || null,
+      excludedScopes: getExcludedScopes(),
+      auditSource:    state.auditResults ? 'npm-audit-api' : 'local-cve-db'
+    },
+
+    summary: {
+      total:              analyzable.length,
+      upToDate:           upToDate.length,
+      outdated:           outdated.length,
+      errors:             errors.length,
+      excluded:           excluded.length,
+      overridesNew:       newOverrides.length,
+      overridesApplied:   appliedOverrides.length
+    },
+
+    dependencies: analyzable.map(p => ({
+      name:           p.name,
+      type:           p.isDev ? 'devDependency' : 'dependency',
+      isAngular:      p.isAngular,
+      currentVersion: p.currentVersion,
+      latestVersion:  p.latestVersion,
+      status:         p.status   // "ok" | "outdated" | "error"
+    })),
+
+    excluded: excluded.map(p => ({
+      name:           p.name,
+      type:           p.isDev ? 'devDependency' : 'dependency',
+      currentVersion: p.currentVersion,
+      reason:         'scope excluido de análisis'
+    })),
+
+    updates: {
+      angular: outdated
+        .filter(p => p.isAngular)
+        .map(p => ({
+          name:           p.name,
+          from:           p.currentVersion,
+          to:             p.latestVersion,
+          command:        `npm install ${p.name}@${p.latestVersion}${flagStr}`
+        })),
+      other: outdated
+        .filter(p => !p.isAngular)
+        .map(p => ({
+          name:           p.name,
+          from:           p.currentVersion,
+          to:             p.latestVersion,
+          command:        `npm install ${p.name}@${p.latestVersion}${flagStr}`
+        })),
+      bulkCommand: outdated.length
+        ? `npm install ${outdated.map(p => `${p.name}@${p.latestVersion}`).join(' ')}${flagStr}`
+        : null
+    },
+
+    overrides: {
+      suggested: newOverrides.map(o => ({
+        name:           o.name,
+        currentVersion: o.currentVersion,
+        fixVersion:     o.fixVersion,
+        severity:       o.severity,
+        cve:            o.cve || null,
+        reason:         o.reason,
+        source:         o.source
+      })),
+      alreadyApplied: appliedOverrides.map(o => ({
+        name:           o.name,
+        appliedVersion: state.existingOverrides[o.name],
+        severity:       o.severity,
+        cve:            o.cve || null
+      })),
+      packageJsonBlock: newOverrides.length
+        ? newOverrides.reduce((acc, o) => { acc[o.name] = o.fixVersion; return acc; }, {})
+        : null
+    },
+
+    commands: {
+      installAll: outdated.length
+        ? `npm install ${outdated.map(p => `${p.name}@${p.latestVersion}`).join(' ')}${flagStr}`
+        : null,
+      installAngular: outdated.filter(p => p.isAngular).length
+        ? `npm install ${outdated.filter(p => p.isAngular).map(p => `${p.name}@${p.latestVersion}`).join(' ')}${flagStr}`
+        : null,
+      installOthers: outdated.filter(p => !p.isAngular).length
+        ? `npm install ${outdated.filter(p => !p.isAngular).map(p => `${p.name}@${p.latestVersion}`).join(' ')}${flagStr}`
+        : null,
+      afterOverrides: newOverrides.length ? `npm install${flagStr}` : null
+    }
+  };
+}
+
+function downloadAnalysisReport() {
+  const report = buildAnalysisReport();
+  if (!report) { toast('Analiza un package.json primero', 'danger'); return; }
+  const filename = `analysis-report_${report.meta.project}_${new Date().toISOString().slice(0,10)}.json`;
+  const blob = new Blob([JSON.stringify(report, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  a.click();
+  toast(`✓ ${filename} descargado`);
+}
+
+function copyAnalysisReport() {
+  const report = buildAnalysisReport();
+  if (!report) { toast('Analiza un package.json primero', 'danger'); return; }
+  copyText(null, JSON.stringify(report, null, 2));
+}
+
+function previewReport() {
+  const report = buildAnalysisReport();
+  if (!report) { toast('Analiza un package.json primero', 'danger'); return; }
+  const el = document.getElementById('reportPreview');
+  el.style.display = el.style.display === 'none' ? 'block' : 'none';
+  if (el.style.display === 'block') {
+    el.innerHTML = syntaxHighlight(JSON.stringify(report, null, 2));
+  }
+}
+
 // ─── FILTERS ─────────────────────────────────────────────────────────────
 function setFilter(type, el) {
   currentFilter = type;
@@ -1641,7 +1866,18 @@ function toast(msg, type = 'ok') {
 }
 
 function resetTool() {
-  state = { rawJson: null, packages: [], overrides: [], exportMode: 'updated', excludedPackages: [], existingOverrides: {}, auditResults: null };
+  state = { rawJson: null, auditJson: null, packages: [], overrides: [], exportMode: 'updated', excludedPackages: [], existingOverrides: {}, auditResults: null };
+  // Reset audit zone UI
+  const azEl = document.getElementById('auditStatus');
+  if (azEl) azEl.style.display = 'none';
+  const amEl = document.getElementById('auditMissing');
+  if (amEl) amEl.style.display = 'block';
+  const adEl = document.getElementById('auditDropZone');
+  if (adEl) adEl.style.borderColor = 'rgba(255,171,64,0.3)';
+  const pkEl = document.getElementById('pkgStatus');
+  if (pkEl) pkEl.style.display = 'none';
+  const dzEl = document.getElementById('dropZone');
+  if (dzEl) { dzEl.style.display = ''; dzEl.style.borderColor = ''; }
   document.getElementById('dropZone').style.display = '';
   document.getElementById('configBar').classList.remove('visible');
   document.getElementById('summaryGrid').classList.remove('visible');

@@ -1,0 +1,1658 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Angular Dep Manager</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0a0f;
+    --surface: #111118;
+    --surface2: #16161f;
+    --border: #1e1e2e;
+    --border2: #2a2a3e;
+    --accent: #dd0031;
+    --accent2: #c3002f;
+    --accent-glow: rgba(221,0,49,0.15);
+    --angular: #dd0031;
+    --ok: #00e676;
+    --warn: #ffab40;
+    --danger: #ff5252;
+    --info: #40c4ff;
+    --text: #e8e8f0;
+    --text2: #888899;
+    --text3: #555566;
+    --mono: 'JetBrains Mono', monospace;
+    --sans: 'Syne', sans-serif;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Background grid */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(var(--border) 1px, transparent 1px),
+      linear-gradient(90deg, var(--border) 1px, transparent 1px);
+    background-size: 40px 40px;
+    opacity: 0.3;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .container { position: relative; z-index: 1; max-width: 1200px; margin: 0 auto; padding: 0 24px 80px; }
+
+  /* HEADER */
+  header {
+    padding: 40px 0 32px;
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 40px;
+  }
+
+  .logo {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+
+  .logo-icon {
+    width: 48px; height: 48px;
+    background: var(--accent);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 22px; font-weight: 800; color: white;
+    clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
+    flex-shrink: 0;
+  }
+
+  .logo-text h1 { font-size: 22px; font-weight: 800; letter-spacing: -0.5px; }
+  .logo-text h1 span { color: var(--accent); }
+  .logo-text p { font-size: 11px; color: var(--text3); font-family: var(--mono); margin-top: 2px; }
+
+  .header-meta { font-family: var(--mono); font-size: 11px; color: var(--text3); text-align: right; line-height: 1.8; }
+  .header-meta .live { color: var(--ok); }
+  .header-meta .live::before { content: '● '; }
+
+  /* UPLOAD ZONE */
+  .upload-zone {
+    border: 2px dashed var(--border2);
+    border-radius: 12px;
+    padding: 56px 40px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s;
+    background: var(--surface);
+    position: relative;
+    overflow: hidden;
+  }
+
+  .upload-zone::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(ellipse at center, var(--accent-glow) 0%, transparent 70%);
+    opacity: 0;
+    transition: opacity 0.3s;
+  }
+
+  .upload-zone:hover, .upload-zone.dragover {
+    border-color: var(--accent);
+    background: var(--surface2);
+  }
+
+  .upload-zone:hover::before, .upload-zone.dragover::before { opacity: 1; }
+
+  .upload-icon { font-size: 48px; margin-bottom: 16px; display: block; }
+
+  .upload-zone h2 { font-size: 20px; font-weight: 700; margin-bottom: 8px; }
+  .upload-zone p { font-size: 13px; color: var(--text2); font-family: var(--mono); }
+
+  .upload-btn {
+    display: inline-block;
+    margin-top: 20px;
+    padding: 10px 24px;
+    background: var(--accent);
+    color: white;
+    border-radius: 6px;
+    font-family: var(--sans);
+    font-weight: 700;
+    font-size: 13px;
+    cursor: pointer;
+    border: none;
+    transition: background 0.2s;
+  }
+
+  .upload-btn:hover { background: var(--accent2); }
+
+  #fileInput { display: none; }
+
+  /* CONFIG BAR */
+  .config-bar {
+    display: none;
+    gap: 12px;
+    margin-bottom: 32px;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+
+  .config-bar.visible { display: flex; }
+
+  .config-tag {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--surface);
+    border: 1px solid var(--border2);
+    border-radius: 8px;
+    padding: 8px 14px;
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--text2);
+  }
+
+  .config-tag label { color: var(--text3); font-size: 10px; display: block; margin-bottom: 2px; }
+
+  .config-tag select, .config-tag input {
+    background: transparent;
+    border: none;
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 12px;
+    outline: none;
+    cursor: pointer;
+    padding: 0;
+  }
+
+  .config-tag select option { background: #1a1a2e; }
+
+  .btn-primary {
+    padding: 10px 20px;
+    background: var(--accent);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-family: var(--sans);
+    font-weight: 700;
+    font-size: 13px;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex; align-items: center; gap: 8px;
+  }
+
+  .btn-primary:hover { background: var(--accent2); transform: translateY(-1px); }
+  .btn-primary:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+
+  .btn-secondary {
+    padding: 10px 20px;
+    background: transparent;
+    color: var(--text2);
+    border: 1px solid var(--border2);
+    border-radius: 8px;
+    font-family: var(--sans);
+    font-weight: 600;
+    font-size: 13px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .btn-secondary:hover { border-color: var(--text2); color: var(--text); }
+
+  /* PROGRESS */
+  .progress-bar {
+    display: none;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px 20px;
+    margin-bottom: 24px;
+    font-family: var(--mono);
+    font-size: 12px;
+  }
+
+  .progress-bar.visible { display: block; }
+
+  .progress-track {
+    background: var(--border);
+    height: 4px;
+    border-radius: 2px;
+    margin: 10px 0 8px;
+    overflow: hidden;
+  }
+
+  .progress-fill {
+    height: 100%;
+    background: var(--accent);
+    border-radius: 2px;
+    transition: width 0.3s;
+    box-shadow: 0 0 8px var(--accent);
+  }
+
+  .progress-status { color: var(--text2); }
+  .progress-count { color: var(--text3); float: right; }
+
+  /* SUMMARY CARDS */
+  .summary-grid {
+    display: none;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+    margin-bottom: 32px;
+  }
+
+  .summary-grid.visible { display: grid; }
+
+  .summary-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 18px 20px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .summary-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+  }
+
+  .summary-card.total::before { background: var(--text3); }
+  .summary-card.uptodate::before { background: var(--ok); }
+  .summary-card.outdated::before { background: var(--warn); }
+  .summary-card.vuln::before { background: var(--danger); }
+
+  .summary-card .num {
+    font-size: 36px;
+    font-weight: 800;
+    font-family: var(--mono);
+    line-height: 1;
+    margin-bottom: 4px;
+  }
+
+  .summary-card.uptodate .num { color: var(--ok); }
+  .summary-card.outdated .num { color: var(--warn); }
+  .summary-card.vuln .num { color: var(--danger); }
+
+  .summary-card .label { font-size: 11px; color: var(--text3); font-family: var(--mono); text-transform: uppercase; letter-spacing: 1px; }
+
+  /* TABS */
+  .tabs {
+    display: none;
+    gap: 4px;
+    margin-bottom: 24px;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 0;
+  }
+
+  .tabs.visible { display: flex; }
+
+  .tab {
+    padding: 10px 18px;
+    border-radius: 6px 6px 0 0;
+    font-family: var(--mono);
+    font-size: 12px;
+    cursor: pointer;
+    border: 1px solid transparent;
+    border-bottom: none;
+    color: var(--text3);
+    background: transparent;
+    transition: all 0.2s;
+    position: relative;
+    bottom: -1px;
+  }
+
+  .tab:hover { color: var(--text2); }
+
+  .tab.active {
+    background: var(--surface);
+    border-color: var(--border);
+    border-bottom-color: var(--surface);
+    color: var(--text);
+  }
+
+  .tab .badge {
+    display: inline-block;
+    background: var(--border2);
+    border-radius: 10px;
+    padding: 1px 7px;
+    font-size: 10px;
+    margin-left: 6px;
+  }
+
+  .tab.active .badge { background: var(--accent); color: white; }
+
+  /* TABLE */
+  .panel { display: none; }
+  .panel.active { display: block; }
+
+  .deps-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-family: var(--mono);
+    font-size: 12px;
+  }
+
+  .deps-table th {
+    text-align: left;
+    padding: 10px 16px;
+    color: var(--text3);
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+    font-weight: 400;
+  }
+
+  .deps-table td {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border);
+    vertical-align: middle;
+  }
+
+  .deps-table tr:hover td { background: var(--surface2); }
+
+  .pkg-name {
+    font-weight: 500;
+    color: var(--text);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .pkg-scope { color: var(--text3); }
+
+  .ver-badge {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 500;
+  }
+
+  .ver-current { background: var(--border2); color: var(--text2); }
+  .ver-new { background: rgba(0,230,118,0.12); color: var(--ok); }
+  .ver-warn { background: rgba(255,171,64,0.12); color: var(--warn); }
+  .ver-same { background: transparent; color: var(--text3); }
+
+  .status-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    display: inline-block;
+    flex-shrink: 0;
+  }
+
+  .dot-ok { background: var(--ok); box-shadow: 0 0 6px var(--ok); }
+  .dot-warn { background: var(--warn); box-shadow: 0 0 6px var(--warn); }
+  .dot-err { background: var(--danger); box-shadow: 0 0 6px var(--danger); }
+  .dot-skip { background: var(--text3); }
+
+  .type-tag {
+    font-size: 9px;
+    padding: 2px 7px;
+    border-radius: 3px;
+    border: 1px solid var(--border2);
+    color: var(--text3);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  .type-angular { border-color: rgba(221,0,49,0.3); color: rgba(221,0,49,0.7); }
+  .type-dev { border-color: rgba(64,196,255,0.3); color: rgba(64,196,255,0.7); }
+  .type-excluded { border-color: rgba(85,85,102,0.5); color: var(--text3); font-style: italic; }
+
+  .audit-source {
+    display: inline-block;
+    font-size: 9px;
+    padding: 1px 6px;
+    border-radius: 3px;
+    margin-left: 6px;
+    vertical-align: middle;
+  }
+  .audit-source.npm-audit { background: rgba(255,82,82,0.15); color: var(--danger); border: 1px solid rgba(255,82,82,0.3); }
+  .audit-source.known-cve { background: rgba(255,171,64,0.15); color: var(--warn); border: 1px solid rgba(255,171,64,0.3); }
+  .audit-source.outdated { background: rgba(64,196,255,0.1); color: var(--info); border: 1px solid rgba(64,196,255,0.2); }
+
+  /* COMMANDS PANEL */
+  .cmd-section { margin-bottom: 28px; }
+
+  .cmd-section h3 {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--text2);
+    margin-bottom: 12px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    font-family: var(--mono);
+  }
+
+  .cmd-block {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+  }
+
+  .cmd-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface2);
+  }
+
+  .cmd-header span { font-family: var(--mono); font-size: 10px; color: var(--text3); }
+
+  .cmd-copy {
+    background: transparent;
+    border: 1px solid var(--border2);
+    border-radius: 4px;
+    padding: 4px 10px;
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--text2);
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .cmd-copy:hover { border-color: var(--accent); color: var(--accent); }
+  .cmd-copy.copied { border-color: var(--ok); color: var(--ok); }
+
+  .cmd-body {
+    padding: 14px 16px;
+    font-family: var(--mono);
+    font-size: 12px;
+    line-height: 1.8;
+    color: var(--text);
+    white-space: pre-wrap;
+    word-break: break-all;
+  }
+
+  .cmd-comment { color: var(--text3); }
+  .cmd-pkg { color: var(--info); }
+  .cmd-flag { color: var(--warn); }
+  .cmd-ver { color: var(--ok); }
+
+  /* OVERRIDES PANEL */
+  .override-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--danger);
+    border-radius: 8px;
+    margin-bottom: 12px;
+    overflow: hidden;
+  }
+
+  .override-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 16px;
+    cursor: pointer;
+  }
+
+  .override-header .pkg { font-weight: 600; font-family: var(--mono); font-size: 13px; }
+  .override-header .reason { font-size: 11px; color: var(--text3); font-family: var(--mono); }
+
+  .override-body {
+    padding: 0 16px 16px;
+    border-top: 1px solid var(--border);
+    margin-top: 0;
+  }
+
+  .override-body p { font-size: 12px; color: var(--text2); margin: 12px 0 10px; line-height: 1.6; }
+
+  .json-block {
+    background: var(--bg);
+    border: 1px solid var(--border2);
+    border-radius: 6px;
+    padding: 12px 14px;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--ok);
+    position: relative;
+  }
+
+  .json-block .json-key { color: var(--info); }
+  .json-block .json-val { color: var(--ok); }
+  .json-block .json-str { color: var(--warn); }
+
+  /* EXPORT PANEL */
+  .export-options {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+    margin-bottom: 28px;
+  }
+
+  .export-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 20px;
+    cursor: pointer;
+    transition: all 0.2s;
+    text-align: center;
+  }
+
+  .export-card:hover { border-color: var(--accent); background: var(--surface2); }
+  .export-card.selected { border-color: var(--accent); background: rgba(221,0,49,0.08); }
+
+  .export-card .ico { font-size: 28px; margin-bottom: 10px; }
+  .export-card h4 { font-size: 13px; font-weight: 700; margin-bottom: 4px; }
+  .export-card p { font-size: 11px; color: var(--text3); font-family: var(--mono); }
+
+  .json-preview {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 20px;
+    font-family: var(--mono);
+    font-size: 11px;
+    max-height: 400px;
+    overflow-y: auto;
+    line-height: 1.7;
+    margin-bottom: 16px;
+  }
+
+  .json-preview .jk { color: var(--info); }
+  .json-preview .jv { color: var(--ok); }
+  .json-preview .js { color: var(--warn); }
+  .json-preview .jc { color: var(--text3); }
+
+  /* LOADER SPINNER */
+  .spinner {
+    width: 14px; height: 14px;
+    border: 2px solid rgba(255,255,255,0.2);
+    border-top-color: white;
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+    display: inline-block;
+  }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* SCROLL */
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: var(--bg); }
+  ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
+
+  /* EMPTY STATE */
+  .empty { text-align: center; padding: 60px 20px; color: var(--text3); font-family: var(--mono); font-size: 13px; }
+
+  /* TOAST */
+  .toast {
+    position: fixed;
+    bottom: 24px; right: 24px;
+    background: var(--surface);
+    border: 1px solid var(--border2);
+    border-radius: 8px;
+    padding: 12px 18px;
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--ok);
+    transform: translateY(100px);
+    opacity: 0;
+    transition: all 0.3s;
+    z-index: 100;
+    border-left: 3px solid var(--ok);
+  }
+
+  .toast.show { transform: translateY(0); opacity: 1; }
+
+  /* FILTER BAR */
+  .filter-bar {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 16px;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+
+  .filter-btn {
+    padding: 5px 12px;
+    border-radius: 20px;
+    font-family: var(--mono);
+    font-size: 11px;
+    cursor: pointer;
+    border: 1px solid var(--border2);
+    background: transparent;
+    color: var(--text3);
+    transition: all 0.2s;
+  }
+
+  .filter-btn:hover, .filter-btn.active { background: var(--surface2); color: var(--text); border-color: var(--text3); }
+  .filter-btn.active { border-color: var(--accent); color: var(--accent); }
+
+  .search-input {
+    margin-left: auto;
+    background: var(--surface);
+    border: 1px solid var(--border2);
+    border-radius: 6px;
+    padding: 5px 12px;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text);
+    outline: none;
+    width: 200px;
+  }
+
+  .search-input::placeholder { color: var(--text3); }
+  .search-input:focus { border-color: var(--accent); }
+
+  @media (max-width: 768px) {
+    .summary-grid { grid-template-columns: repeat(2,1fr); }
+    .export-options { grid-template-columns: 1fr; }
+    header { flex-direction: column; gap: 16px; align-items: flex-start; }
+  }
+</style>
+</head>
+<body>
+
+<div class="container">
+  <header>
+    <div class="logo">
+      <div class="logo-icon">Ng</div>
+      <div class="logo-text">
+        <h1>Angular <span>Dep</span> Manager</h1>
+        <p>npm registry · real-time · no server required</p>
+      </div>
+    </div>
+    <div class="header-meta">
+      <span class="live">npm registry live</span><br>
+      <span id="currentDate"></span><br>
+      <span id="fileName" style="color:var(--text2)"></span>
+    </div>
+  </header>
+
+  <!-- UPLOAD -->
+  <div class="upload-zone" id="dropZone" onclick="document.getElementById('fileInput').click()">
+    <span class="upload-icon">📦</span>
+    <h2>Carga tu package.json</h2>
+    <p>Arrastra el archivo aquí o haz clic para seleccionarlo</p>
+    <button class="upload-btn" onclick="event.stopPropagation(); document.getElementById('fileInput').click()">Seleccionar archivo</button>
+    <input type="file" id="fileInput" accept=".json" onchange="handleFileSelect(event)">
+  </div>
+
+  <!-- CONFIG BAR -->
+  <div class="config-bar" id="configBar">
+    <div class="config-tag">
+      <div>
+        <label>MAJOR VERSION</label>
+        <select id="majorVersion">
+          <option value="any">Cualquier versión</option>
+          <option value="20" selected>Angular 20.x.x</option>
+          <option value="19">Angular 19.x.x</option>
+          <option value="18">Angular 18.x.x</option>
+          <option value="17">Angular 17.x.x</option>
+          <option value="latest">Latest siempre</option>
+        </select>
+      </div>
+    </div>
+    <div class="config-tag">
+      <div>
+        <label>ACEPTAR LTS</label>
+        <select id="acceptLts">
+          <option value="no" selected>No LTS</option>
+          <option value="yes">Aceptar LTS</option>
+          <option value="only">Solo LTS</option>
+        </select>
+      </div>
+    </div>
+    <div class="config-tag">
+      <div>
+        <label>INSTALL FLAG</label>
+        <select id="installFlag">
+          <option value="--legacy-peer-deps" selected>--legacy-peer-deps</option>
+          <option value="--force">--force</option>
+          <option value="">Ninguno</option>
+        </select>
+      </div>
+    </div>
+    <div class="config-tag" style="flex:1;min-width:220px">
+      <div style="width:100%">
+        <label>EXCLUIR SCOPES PRIVADOS</label>
+        <input type="text" id="excludedScopes" placeholder="@bancolombia, @miempresa" style="width:100%" value="@bancolombia">
+      </div>
+    </div>
+    <button class="btn-primary" id="analyzeBtn" onclick="startAnalysis()">
+      <span class="spinner" id="btnSpinner" style="display:none"></span>
+      <span id="btnText">🔍 Analizar</span>
+    </button>
+    <button class="btn-secondary" onclick="resetTool()">↺ Reset</button>
+  </div>
+
+  <!-- PROGRESS -->
+  <div class="progress-bar" id="progressBar">
+    <div style="display:flex;justify-content:space-between">
+      <span class="progress-status" id="progressStatus">Consultando npm registry...</span>
+      <span class="progress-count" id="progressCount">0/0</span>
+    </div>
+    <div class="progress-track"><div class="progress-fill" id="progressFill" style="width:0%"></div></div>
+    <span style="font-size:10px;color:var(--text3)" id="progressPkg"></span>
+  </div>
+
+  <!-- SUMMARY -->
+  <div class="summary-grid" id="summaryGrid">
+    <div class="summary-card total">
+      <div class="num" id="sumTotal">0</div>
+      <div class="label">Dependencias</div>
+    </div>
+    <div class="summary-card uptodate">
+      <div class="num" id="sumOk">0</div>
+      <div class="label">Al día</div>
+    </div>
+    <div class="summary-card outdated">
+      <div class="num" id="sumOutdated">0</div>
+      <div class="label">Actualizables</div>
+    </div>
+    <div class="summary-card vuln">
+      <div class="num" id="sumVuln">0</div>
+      <div class="label">Con override sugerido</div>
+    </div>
+  </div>
+
+  <!-- TABS -->
+  <div class="tabs" id="tabs">
+    <button class="tab active" onclick="showTab('all')">Todas <span class="badge" id="tabAllBadge">0</span></button>
+    <button class="tab" onclick="showTab('outdated')">Actualizables <span class="badge" id="tabOutdatedBadge">0</span></button>
+    <button class="tab" onclick="showTab('overrides')">Overrides <span class="badge" id="tabOverridesBadge">0</span></button>
+    <button class="tab" onclick="showTab('commands')">Comandos npm</button>
+    <button class="tab" onclick="showTab('export')">Exportar JSON</button>
+  </div>
+
+  <!-- PANEL: ALL / OUTDATED -->
+  <div class="panel active" id="panel-all">
+    <div class="filter-bar">
+      <button class="filter-btn active" onclick="setFilter('all', this)">Todo</button>
+      <button class="filter-btn" onclick="setFilter('angular', this)">@angular</button>
+      <button class="filter-btn" onclick="setFilter('dev', this)">devDependencies</button>
+      <button class="filter-btn" onclick="setFilter('prod', this)">dependencies</button>
+      <button class="filter-btn" onclick="setFilter('excluded', this)">🔒 Excluidos</button>
+      <input class="search-input" type="text" placeholder="buscar paquete..." oninput="filterSearch(this.value)" id="searchInput">
+    </div>
+    <div style="overflow-x:auto; border: 1px solid var(--border); border-radius:8px;">
+      <table class="deps-table" id="depsTable">
+        <thead>
+          <tr>
+            <th width="24"></th>
+            <th>Paquete</th>
+            <th>Tipo</th>
+            <th>Versión actual</th>
+            <th>Última disponible</th>
+            <th>Estado</th>
+          </tr>
+        </thead>
+        <tbody id="depsTableBody">
+          <tr><td colspan="6"><div class="empty">Carga un package.json para comenzar</div></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="panel" id="panel-outdated">
+    <div style="overflow-x:auto; border: 1px solid var(--border); border-radius:8px;">
+      <table class="deps-table">
+        <thead>
+          <tr>
+            <th width="24"></th>
+            <th>Paquete</th>
+            <th>Tipo</th>
+            <th>Versión actual</th>
+            <th>Última disponible</th>
+            <th>Diferencia</th>
+          </tr>
+        </thead>
+        <tbody id="outdatedTableBody">
+          <tr><td colspan="6"><div class="empty">No hay paquetes desactualizados</div></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- PANEL: OVERRIDES -->
+  <div class="panel" id="panel-overrides">
+    <div id="overridesContent">
+      <div class="empty">Carga un package.json para detectar overrides necesarios</div>
+    </div>
+  </div>
+
+  <!-- PANEL: COMMANDS -->
+  <div class="panel" id="panel-commands">
+    <div id="commandsContent">
+      <div class="empty">Analiza tus dependencias para ver los comandos</div>
+    </div>
+  </div>
+
+  <!-- PANEL: EXPORT -->
+  <div class="panel" id="panel-export">
+    <div class="export-options" id="exportOptions">
+      <div class="export-card selected" onclick="selectExport('updated', this)">
+        <div class="ico">🔄</div>
+        <h4>Solo actualizados</h4>
+        <p>Respeta tu major version configurada</p>
+      </div>
+      <div class="export-card" onclick="selectExport('latest', this)">
+        <div class="ico">🚀</div>
+        <h4>Última versión Angular</h4>
+        <p>Actualiza todo al latest disponible</p>
+      </div>
+      <div class="export-card" onclick="selectExport('overrides', this)">
+        <div class="ico">🛡️</div>
+        <h4>Con overrides aplicados</h4>
+        <p>Incluye bloque overrides para vulnerabilidades</p>
+      </div>
+    </div>
+    <div class="json-preview" id="jsonPreview">
+      <span style="color:var(--text3);font-size:12px">Selecciona un modo de exportación</span>
+    </div>
+    <div style="display:flex;gap:12px">
+      <button class="btn-primary" onclick="downloadJson()">⬇ Descargar package.json</button>
+      <button class="btn-secondary" onclick="copyJson()">📋 Copiar JSON</button>
+    </div>
+  </div>
+
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ─── STATE ────────────────────────────────────────────────────────────────
+let state = {
+  rawJson: null,
+  packages: [],      // {name, currentVersion, latestVersion, type, isAngular, isDev, status}
+  overrides: [],
+  exportMode: 'updated'
+};
+
+let currentFilter = 'all';
+let currentSearch = '';
+
+// ─── DATE ─────────────────────────────────────────────────────────────────
+document.getElementById('currentDate').textContent = new Date().toLocaleDateString('es-ES', {
+  weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
+});
+
+// ─── FILE HANDLING ────────────────────────────────────────────────────────
+const dropZone = document.getElementById('dropZone');
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('dragover'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault();
+  dropZone.classList.remove('dragover');
+  const file = e.dataTransfer.files[0];
+  if (file && file.name.endsWith('.json')) loadFile(file);
+});
+
+function handleFileSelect(e) {
+  const file = e.target.files[0];
+  if (file) loadFile(file);
+}
+
+function loadFile(file) {
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const json = JSON.parse(e.target.result);
+      state.rawJson = json;
+      document.getElementById('fileName').textContent = file.name;
+      dropZone.style.display = 'none';
+      document.getElementById('configBar').classList.add('visible');
+      toast(`✓ ${file.name} cargado — ${countDeps(json)} dependencias encontradas`);
+    } catch {
+      toast('❌ JSON inválido', 'danger');
+    }
+  };
+  reader.readAsText(file);
+}
+
+function countDeps(json) {
+  return Object.keys(json.dependencies || {}).length + Object.keys(json.devDependencies || {}).length;
+}
+
+// ─── ANALYSIS ─────────────────────────────────────────────────────────────
+function getExcludedScopes() {
+  const raw = document.getElementById('excludedScopes').value || '';
+  return raw.split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
+}
+
+function isExcluded(pkgName) {
+  const excluded = getExcludedScopes();
+  if (!excluded.length) return false;
+  return excluded.some(scope => {
+    // Match exact scope prefix: @bancolombia/ or full name if no slash
+    const normalized = scope.startsWith('@') ? scope : '@' + scope;
+    return pkgName.toLowerCase().startsWith(normalized + '/') || pkgName.toLowerCase() === normalized;
+  });
+}
+
+async function startAnalysis() {
+  if (!state.rawJson) return;
+
+  const btn = document.getElementById('analyzeBtn');
+  btn.disabled = true;
+  document.getElementById('btnSpinner').style.display = 'inline-block';
+  document.getElementById('btnText').textContent = 'Analizando...';
+
+  const majorVersion = document.getElementById('majorVersion').value;
+  const json = state.rawJson;
+
+  // Collect all packages — mark excluded ones
+  const allPkgs = [];
+  for (const [name, ver] of Object.entries(json.dependencies || {}))
+    allPkgs.push({ name, currentVersion: cleanVer(ver), isDev: false, excluded: isExcluded(name) });
+  for (const [name, ver] of Object.entries(json.devDependencies || {}))
+    allPkgs.push({ name, currentVersion: cleanVer(ver), isDev: true, excluded: isExcluded(name) });
+
+  // Show progress — only count non-excluded
+  const toAnalyze = allPkgs.filter(p => !p.excluded);
+  const excluded = allPkgs.filter(p => p.excluded);
+
+  const pb = document.getElementById('progressBar');
+  pb.classList.add('visible');
+
+  state.packages = [];
+  state.excludedPackages = excluded;
+  let done = 0;
+
+  // Add excluded packages to state as-is (no npm lookup)
+  excluded.forEach(pkg => {
+    state.packages.push({
+      name: pkg.name,
+      currentVersion: pkg.currentVersion,
+      latestVersion: '—',
+      type: pkg.isDev ? 'dev' : 'prod',
+      isAngular: pkg.name.startsWith('@angular/'),
+      isDev: pkg.isDev,
+      excluded: true,
+      status: 'excluded'
+    });
+  });
+
+  // Fetch in batches of 8
+  const BATCH = 8;
+  for (let i = 0; i < toAnalyze.length; i += BATCH) {
+    const batch = toAnalyze.slice(i, i + BATCH);
+    await Promise.all(batch.map(async pkg => {
+      try {
+        const info = await fetchNpmInfo(pkg.name);
+        const latest = getBestVersion(info, pkg.name, majorVersion);
+        const pkgData = {
+          name: pkg.name,
+          currentVersion: pkg.currentVersion,
+          latestVersion: latest,
+          allVersions: info ? Object.keys(info.versions || {}) : [],
+          type: pkg.isDev ? 'dev' : 'prod',
+          isAngular: pkg.name.startsWith('@angular/'),
+          isDev: pkg.isDev,
+          excluded: false,
+          status: compareVersions(pkg.currentVersion, latest)
+        };
+        state.packages.push(pkgData);
+      } catch {
+        state.packages.push({
+          name: pkg.name,
+          currentVersion: pkg.currentVersion,
+          latestVersion: '?',
+          type: pkg.isDev ? 'dev' : 'prod',
+          isAngular: pkg.name.startsWith('@angular/'),
+          isDev: pkg.isDev,
+          excluded: false,
+          status: 'error'
+        });
+      }
+      done++;
+      updateProgress(done, toAnalyze.length, pkg.name);
+    }));
+  }
+
+  // Run npm audit API
+  document.getElementById('progressStatus').textContent = 'Consultando npm audit...';
+  await detectOverrides();
+
+  pb.classList.remove('visible');
+  btn.disabled = false;
+  document.getElementById('btnSpinner').style.display = 'none';
+  document.getElementById('btnText').textContent = '🔍 Re-analizar';
+
+  renderAll();
+  toast(`✓ Análisis completado · ${excluded.length} excluidos`);
+}
+
+function updateProgress(done, total, currentPkg) {
+  const pct = Math.round((done / total) * 100);
+  document.getElementById('progressFill').style.width = pct + '%';
+  document.getElementById('progressStatus').textContent = 'Consultando npm registry...';
+  document.getElementById('progressCount').textContent = `${done}/${total}`;
+  document.getElementById('progressPkg').textContent = currentPkg;
+}
+
+async function fetchNpmInfo(pkgName) {
+  const encoded = pkgName.replace('/', '%2F');
+  const r = await fetch(`https://registry.npmjs.org/${encoded}`, {
+    headers: { 'Accept': 'application/json' }
+  });
+  if (!r.ok) return null;
+  return await r.json();
+}
+
+function cleanVer(v) {
+  return (v || '').replace(/[\^~>=<]/g, '').trim();
+}
+
+function getBestVersion(info, pkgName, majorVersion) {
+  if (!info) return '?';
+  const distTags = info['dist-tags'] || {};
+
+  if (majorVersion === 'latest') return distTags.latest || '?';
+  if (majorVersion === 'any') return distTags.latest || '?';
+
+  // Filter versions matching the major
+  const major = parseInt(majorVersion);
+  const versions = Object.keys(info.versions || {});
+  const matching = versions.filter(v => {
+    const parts = v.split('.');
+    return parseInt(parts[0]) === major && !v.includes('-');
+  });
+
+  if (!matching.length) return distTags.latest || '?';
+
+  // Return highest matching
+  matching.sort((a, b) => semverCompare(b, a));
+  return matching[0];
+}
+
+function semverCompare(a, b) {
+  const pa = a.split('.').map(Number);
+  const pb = b.split('.').map(Number);
+  for (let i = 0; i < 3; i++) {
+    if ((pa[i] || 0) > (pb[i] || 0)) return 1;
+    if ((pa[i] || 0) < (pb[i] || 0)) return -1;
+  }
+  return 0;
+}
+
+function compareVersions(current, latest) {
+  if (latest === '?' || latest === 'error') return 'error';
+  if (current === latest) return 'ok';
+  return semverCompare(latest, current) > 0 ? 'outdated' : 'ok';
+}
+
+// ─── OVERRIDE DETECTION — REAL npm audit API + CVE database ──────────────
+// CVE database built from real overrides observed in projects
+const KNOWN_VULNS = [
+  // From your real projects
+  { name: 'ajv',                   fixVersion: '8.18.0',  severity: 'high',     cve: null,               reason: 'Schema validation bypass — observado en tus proyectos' },
+  { name: 'rollup',                fixVersion: '4.59.0',  severity: 'high',     cve: 'CVE-2024-47068',   reason: 'Prototype pollution en bundler' },
+  { name: 'serialize-javascript',  fixVersion: '7.0.3',   severity: 'high',     cve: 'CVE-2020-7660',    reason: 'XSS / code injection en serialización' },
+  { name: '@hono/node-server',     fixVersion: '1.19.10', severity: 'moderate', cve: null,               reason: 'Versión con fix de seguridad — observado en tus proyectos' },
+  { name: '@tootallnate/once',     fixVersion: '3.0.1',   severity: 'moderate', cve: null,               reason: 'Dependencia transitiva con fix — observado en tus proyectos' },
+  { name: 'express-rate-limit',    fixVersion: '8.2.2',   severity: 'moderate', cve: null,               reason: 'Bypass de rate limiting — observado en tus proyectos' },
+  { name: 'tar',                   fixVersion: '7.5.10',  severity: 'high',     cve: 'CVE-2024-28863',   reason: 'Path traversal en extracción de archivos' },
+  { name: 'hono',                  fixVersion: '4.12.5',  severity: 'moderate', cve: null,               reason: 'Fix de seguridad en framework HTTP' },
+  { name: 'immutable',             fixVersion: '5.1.5',   severity: 'low',      cve: null,               reason: 'Actualización de seguridad — observado en tus proyectos' },
+  { name: 'minimatch',             fixVersion: '10.2.4',  severity: 'high',     cve: 'CVE-2022-3517',    reason: 'ReDoS en glob matching' },
+  { name: 'test-exclude',          fixVersion: '8.0.0',   severity: 'low',      cve: null,               reason: 'Fix de dependencias transitivas' },
+  { name: 'semver',                fixVersion: '7.5.4',   severity: 'high',     cve: 'CVE-2022-25883',   reason: 'ReDoS en parsing de versiones' },
+  // Classic CVEs
+  { name: 'braces',                fixVersion: '3.0.3',   severity: 'high',     cve: 'CVE-2024-4068',    reason: 'ReDoS vulnerability' },
+  { name: 'word-wrap',             fixVersion: '1.2.4',   severity: 'moderate', cve: 'CVE-2023-26115',   reason: 'ReDoS vulnerability' },
+  { name: 'tough-cookie',          fixVersion: '4.1.3',   severity: 'moderate', cve: 'CVE-2023-26136',   reason: 'Prototype pollution' },
+  { name: 'nth-check',             fixVersion: '2.0.1',   severity: 'high',     cve: 'CVE-2021-3803',    reason: 'ReDoS vulnerability' },
+  { name: 'postcss',               fixVersion: '8.4.31',  severity: 'moderate', cve: 'CVE-2023-44270',   reason: 'Line return parsing error' },
+  { name: 'webpack',               fixVersion: '5.94.0',  severity: 'high',     cve: 'CVE-2024-43788',   reason: 'DOM Clobbering' },
+  { name: 'micromatch',            fixVersion: '4.0.8',   severity: 'high',     cve: 'CVE-2024-4067',    reason: 'ReDoS vulnerability' },
+  { name: 'ip',                    fixVersion: '2.0.1',   severity: 'high',     cve: 'CVE-2024-29415',   reason: 'SSRF vulnerability' },
+  { name: 'lodash',                fixVersion: '4.17.21', severity: 'high',     cve: 'CVE-2021-23337',   reason: 'Prototype pollution' },
+  { name: 'follow-redirects',      fixVersion: '1.15.6',  severity: 'moderate', cve: 'CVE-2024-28849',   reason: 'Credentials leak en redirecciones' },
+  { name: 'vite',                  fixVersion: '5.4.6',   severity: 'high',     cve: 'CVE-2024-45812',   reason: 'Path traversal en dev server' },
+  { name: 'express',               fixVersion: '4.21.1',  severity: 'moderate', cve: 'CVE-2024-29041',   reason: 'Open redirect' },
+  { name: 'axios',                 fixVersion: '1.7.4',   severity: 'moderate', cve: 'CVE-2024-39338',   reason: 'SSRF en server-side requests' },
+];
+
+async function detectOverrides() {
+  state.overrides = [];
+  state.auditResults = null;
+
+  const nonExcluded = state.packages.filter(p => !p.excluded);
+
+  // ── 1. Try npm audit API ───────────────────────────────────────────────
+  try {
+    // Build requires map from current packages
+    const requires = {};
+    const dependencies = {};
+    nonExcluded.forEach(pkg => {
+      requires[pkg.name] = pkg.currentVersion;
+      dependencies[pkg.name] = { version: pkg.currentVersion };
+    });
+
+    const auditPayload = {
+      name: state.rawJson.name || 'project',
+      version: state.rawJson.version || '0.0.0',
+      requires,
+      dependencies
+    };
+
+    const auditResp = await fetch('https://registry.npmjs.org/-/npm/v1/security/audits/quick', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(auditPayload)
+    });
+
+    if (auditResp.ok) {
+      const auditData = await auditResp.json();
+      state.auditResults = auditData;
+
+      // Parse advisories from npm audit response
+      const advisories = auditData.advisories || {};
+      const added = new Set();
+
+      for (const advisory of Object.values(advisories)) {
+        const pkgName = advisory.module_name;
+        if (added.has(pkgName)) continue;
+        added.add(pkgName);
+
+        // Find recommended fix version
+        let fixVersion = advisory.patched_versions || '>=0.0.0';
+        // Clean up: npm returns things like ">=7.5.2" which is perfect for overrides
+        if (fixVersion === '<0.0.0') fixVersion = 'latest'; // unfixed
+
+        const severity = advisory.severity || 'moderate';
+        const cves = (advisory.cves || []).join(', ') || null;
+
+        state.overrides.push({
+          name: pkgName,
+          currentVersion: nonExcluded.find(p => p.name === pkgName)?.currentVersion || '?',
+          fixVersion,
+          reason: advisory.title || advisory.overview?.slice(0, 80) || 'Vulnerabilidad detectada por npm audit',
+          severity,
+          cve: cves,
+          source: 'npm-audit',
+          url: advisory.url || null
+        });
+      }
+    }
+  } catch (e) {
+    // npm audit API failed — fallback to local CVE database
+    console.warn('npm audit API no disponible, usando base local', e);
+  }
+
+  // ── 2. Layer on top: local CVE database (fill gaps not found by audit) ─
+  const auditNames = new Set(state.overrides.map(o => o.name));
+  const allDepNames = new Set(nonExcluded.map(p => p.name));
+
+  for (const vuln of KNOWN_VULNS) {
+    if (auditNames.has(vuln.name)) continue;       // already reported by audit
+    if (!allDepNames.has(vuln.name)) continue;     // not in this project
+
+    const pkg = nonExcluded.find(p => p.name === vuln.name);
+    if (!pkg) continue;
+
+    // Only suggest if current version is below the fix version
+    const fixClean = vuln.fixVersion.replace(/[>=<^~]/g, '');
+    if (semverCompare(pkg.currentVersion, fixClean) >= 0) continue; // already fixed
+
+    state.overrides.push({
+      name: vuln.name,
+      currentVersion: pkg.currentVersion,
+      fixVersion: '>=' + vuln.fixVersion,
+      reason: vuln.reason,
+      severity: vuln.severity,
+      cve: vuln.cve,
+      source: 'known-cve'
+    });
+  }
+
+  // ── 3. Also check existing overrides block in package.json ─────────────
+  // Show which ones are already applied vs which ones are new suggestions
+  if (state.rawJson.overrides) {
+    state.existingOverrides = state.rawJson.overrides;
+  } else {
+    state.existingOverrides = {};
+  }
+
+  // Sort by severity
+  const severityOrder = { high: 0, moderate: 1, low: 2 };
+  state.overrides.sort((a, b) =>
+    (severityOrder[a.severity] ?? 3) - (severityOrder[b.severity] ?? 3)
+  );
+}
+
+// ─── RENDER ───────────────────────────────────────────────────────────────
+function renderAll() {
+  const pkgs = state.packages;
+  const analyzable = pkgs.filter(p => !p.excluded && p.status !== 'excluded');
+  const outdated = analyzable.filter(p => p.status === 'outdated');
+  const excl = pkgs.filter(p => p.excluded || p.status === 'excluded');
+
+  // Summary — only show analyzed (not excluded) packages
+  document.getElementById('sumTotal').textContent = analyzable.length;
+  document.getElementById('sumOk').textContent = analyzable.filter(p => p.status === 'ok').length;
+  document.getElementById('sumOutdated').textContent = outdated.length;
+  document.getElementById('sumVuln').textContent = state.overrides.filter(o => !state.existingOverrides?.[o.name]).length;
+  document.getElementById('summaryGrid').classList.add('visible');
+
+  // Badge counts
+  document.getElementById('tabAllBadge').textContent = pkgs.length + (excl.length ? ` (${excl.length} excl.)` : '');
+  document.getElementById('tabOutdatedBadge').textContent = outdated.length;
+  document.getElementById('tabOverridesBadge').textContent = state.overrides.length;
+  document.getElementById('tabs').classList.add('visible');
+
+  // Tables: show all packages (excluded will appear dimmed)
+  renderTable('depsTableBody', pkgs);
+  renderTable('outdatedTableBody', outdated);
+  renderOverrides();
+  renderCommands();
+  renderExport();
+}
+
+function renderTable(tbodyId, pkgs) {
+  const tbody = document.getElementById(tbodyId);
+  if (!pkgs.length) {
+    tbody.innerHTML = '<tr><td colspan="6"><div class="empty">✓ Todo al día</div></td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = pkgs.map(pkg => {
+    const isExcl = pkg.excluded || pkg.status === 'excluded';
+    const dotClass = isExcl ? 'dot-skip' : pkg.status === 'ok' ? 'dot-ok' : pkg.status === 'outdated' ? 'dot-warn' : 'dot-skip';
+    const [scope, name] = pkg.name.startsWith('@') ? [pkg.name.split('/')[0] + '/', pkg.name.split('/')[1]] : ['', pkg.name];
+
+    let typeLabel, typeClass;
+    if (isExcl) { typeLabel = 'excluido'; typeClass = 'type-excluded'; }
+    else if (pkg.isAngular) { typeLabel = '@angular'; typeClass = 'type-angular'; }
+    else if (pkg.isDev) { typeLabel = 'dev'; typeClass = 'type-dev'; }
+    else { typeLabel = 'prod'; typeClass = ''; }
+
+    const latestClass = isExcl ? 'ver-same' : pkg.status === 'outdated' ? 'ver-new' : pkg.status === 'error' ? 'ver-warn' : 'ver-same';
+
+    let statusText = '';
+    if (isExcl) statusText = '<span style="color:var(--text3);font-size:11px">— privado</span>';
+    else if (pkg.status === 'ok') statusText = '<span style="color:var(--ok);font-size:11px">✓ Al día</span>';
+    else if (pkg.status === 'outdated') statusText = '<span style="color:var(--warn);font-size:11px">↑ Actualizable</span>';
+    else statusText = '<span style="color:var(--text3);font-size:11px">? Error</span>';
+
+    const rowStyle = isExcl ? 'opacity:0.45' : '';
+
+    return `<tr data-name="${pkg.name}" data-type="${pkg.isDev ? 'dev' : 'prod'}" data-angular="${pkg.isAngular}" data-excluded="${isExcl}" style="${rowStyle}">
+      <td><span class="status-dot ${dotClass}"></span></td>
+      <td><div class="pkg-name"><span class="pkg-scope">${scope}</span>${name || pkg.name}</div></td>
+      <td><span class="type-tag ${typeClass}">${typeLabel}</span></td>
+      <td><span class="ver-badge ver-current">${pkg.currentVersion || '?'}</span></td>
+      <td><span class="ver-badge ${latestClass}">${pkg.latestVersion || '?'}</span></td>
+      <td>${statusText}</td>
+    </tr>`;
+  }).join('');
+}
+
+function renderOverrides() {
+  const cont = document.getElementById('overridesContent');
+
+  if (!state.overrides.length) {
+    cont.innerHTML = '<div class="empty">🛡️ No se detectaron vulnerabilidades — ¡proyecto limpio!</div>';
+    return;
+  }
+
+  // Separate: already in package.json vs new suggestions
+  const existing = state.existingOverrides || {};
+  const alreadyApplied = state.overrides.filter(o => existing[o.name]);
+  const newSuggestions = state.overrides.filter(o => !existing[o.name]);
+  const auditCount = state.overrides.filter(o => o.source === 'npm-audit').length;
+
+  // Build the complete recommended overrides block (new only)
+  const recommendedBlock = {};
+  // Merge existing + new suggestions
+  Object.assign(recommendedBlock, existing);
+  newSuggestions.forEach(o => { recommendedBlock[o.name] = o.fixVersion; });
+
+  const overridesJson = JSON.stringify(recommendedBlock, null, 2);
+
+  const sourceInfo = auditCount > 0
+    ? `<span class="audit-source npm-audit">npm audit API</span> ${auditCount} via npm audit`
+    : `<span class="audit-source known-cve">Base CVE local</span>`;
+
+  cont.innerHTML = `
+    <div style="display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap;align-items:center">
+      <div style="font-family:var(--mono);font-size:11px;color:var(--text3)">
+        Fuente: ${sourceInfo}
+        &nbsp;·&nbsp; ${newSuggestions.length} nuevos &nbsp;·&nbsp;
+        <span style="color:var(--ok)">${alreadyApplied.length} ya aplicados</span>
+      </div>
+    </div>
+
+    ${newSuggestions.length ? `
+    <div style="margin-bottom:20px">
+      <div class="cmd-block">
+        <div class="cmd-header">
+          <span>📋 Bloque "overrides" recomendado para tu package.json</span>
+          <button class="cmd-copy" onclick="copyText(this, document.getElementById('overridesJson').textContent)">Copiar</button>
+        </div>
+        <div class="cmd-body">
+          <pre id="overridesJson" style="color:var(--ok);font-size:11px">"overrides": ${overridesJson}</pre>
+        </div>
+      </div>
+    </div>` : ''}
+
+    ${newSuggestions.length ? '<div style="font-family:var(--mono);font-size:10px;color:var(--text3);margin-bottom:12px;text-transform:uppercase;letter-spacing:1px">⚠ Nuevos overrides sugeridos</div>' : ''}
+
+    ${newSuggestions.map(o => renderOverrideCard(o, false)).join('')}
+
+    ${alreadyApplied.length ? `
+      <div style="font-family:var(--mono);font-size:10px;color:var(--text3);margin:20px 0 12px;text-transform:uppercase;letter-spacing:1px">✓ Ya aplicados en tu package.json</div>
+      ${alreadyApplied.map(o => renderOverrideCard(o, true)).join('')}
+    ` : ''}
+  `;
+}
+
+function renderOverrideCard(o, applied) {
+  const severityColor = o.severity === 'high' ? 'var(--danger)' : o.severity === 'moderate' ? 'var(--warn)' : 'var(--text3)';
+  const severityBg = o.severity === 'high' ? 'rgba(255,82,82,0.12)' : o.severity === 'moderate' ? 'rgba(255,171,64,0.12)' : 'rgba(85,85,102,0.15)';
+  const sourceBadge = o.source === 'npm-audit'
+    ? '<span class="audit-source npm-audit">npm audit</span>'
+    : '<span class="audit-source known-cve">CVE local</span>';
+  const cveBadge = o.cve ? `<span style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-left:6px">${o.cve}</span>` : '';
+  const urlLink = o.url ? `<a href="${o.url}" target="_blank" style="color:var(--info);font-size:10px;font-family:var(--mono);margin-left:6px">ver advisory ↗</a>` : '';
+  const appliedStyle = applied ? 'opacity:0.55;border-left-color:var(--ok)' : '';
+
+  return `
+    <div class="override-card" style="${appliedStyle}">
+      <div class="override-header">
+        <div>
+          <div class="pkg" style="${applied ? 'text-decoration:line-through;color:var(--text2)' : ''}">
+            ${o.name}
+            ${sourceBadge}${cveBadge}${urlLink}
+          </div>
+          <div class="reason">${o.reason}</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px">
+          ${applied ? '<span style="font-size:10px;color:var(--ok);font-family:var(--mono)">✓ aplicado</span>' : ''}
+          <span class="ver-badge" style="font-size:10px;background:${severityBg};color:${severityColor}">
+            ${o.severity.toUpperCase()}
+          </span>
+        </div>
+      </div>
+      <div class="override-body">
+        <p>Versión actual: <code style="color:var(--warn)">${o.currentVersion}</code>
+           &nbsp;→&nbsp; Fix: <code style="color:var(--ok)">${o.fixVersion}</code>
+           ${applied ? `&nbsp;<span style="font-size:10px;color:var(--ok)">(ya en tu package.json: "${state.existingOverrides[o.name]}")</span>` : ''}
+        </p>
+        <div class="json-block">
+          <span class="json-str">"overrides"</span>: {<br>
+          &nbsp;&nbsp;<span class="json-str">"${o.name}"</span>: <span class="json-val">"${o.fixVersion}"</span><br>
+          }
+        </div>
+      </div>
+    </div>`;
+}
+
+function renderCommands() {
+  const cont = document.getElementById('commandsContent');
+  const flag = document.getElementById('installFlag').value;
+  const outdated = state.packages.filter(p => p.status === 'outdated');
+
+  if (!state.packages.length) {
+    cont.innerHTML = '<div class="empty">Analiza tus dependencias primero</div>';
+    return;
+  }
+
+  const flagStr = flag ? ` ${flag}` : '';
+
+  // Group by angular vs others
+  const angularPkgs = outdated.filter(p => p.isAngular);
+  const otherPkgs = outdated.filter(p => !p.isAngular);
+
+  let html = '';
+
+  if (angularPkgs.length) {
+    const cmd = 'npm install ' + angularPkgs.map(p => `${p.name}@${p.latestVersion}`).join(' ') + flagStr;
+    html += `
+      <div class="cmd-section">
+        <h3>🔴 Paquetes Angular</h3>
+        <div class="cmd-block">
+          <div class="cmd-header"><span>bash</span><button class="cmd-copy" onclick="copyText(this, \`${escHtml(cmd)}\`)">Copiar</button></div>
+          <div class="cmd-body">${formatCmd(cmd)}</div>
+        </div>
+      </div>`;
+  }
+
+  if (otherPkgs.length) {
+    const cmd = 'npm install ' + otherPkgs.map(p => `${p.name}@${p.latestVersion}`).join(' ') + flagStr;
+    html += `
+      <div class="cmd-section">
+        <h3>📦 Otros paquetes</h3>
+        <div class="cmd-block">
+          <div class="cmd-header"><span>bash</span><button class="cmd-copy" onclick="copyText(this, \`${escHtml(cmd)}\`)">Copiar</button></div>
+          <div class="cmd-body">${formatCmd(cmd)}</div>
+        </div>
+      </div>`;
+  }
+
+  if (!outdated.length) {
+    html += '<div class="empty" style="padding:30px">✓ Todo al día — no hay comandos de actualización pendientes</div>';
+  }
+
+  // Always show overrides command if applicable
+  if (state.overrides.length) {
+    const overridesBlock = state.overrides.reduce((acc, o) => { acc[o.name] = o.fixVersion; return acc; }, {});
+    const overridesStr = JSON.stringify(overridesBlock, null, 2);
+    html += `
+      <div class="cmd-section">
+        <h3>🛡️ Agregar overrides en package.json</h3>
+        <div class="cmd-block">
+          <div class="cmd-header"><span>json — agregar dentro de package.json</span><button class="cmd-copy" onclick="copyText(this, document.getElementById('cmdOverride').textContent)">Copiar</button></div>
+          <div class="cmd-body"><pre id="cmdOverride" style="font-size:11px;color:var(--ok)">"overrides": ${overridesStr}</pre></div>
+        </div>
+        <div style="margin-top:8px">
+          <div class="cmd-block">
+            <div class="cmd-header"><span>bash — después de editar package.json</span><button class="cmd-copy" onclick="copyText(this, 'npm install${flagStr}')">Copiar</button></div>
+            <div class="cmd-body">npm install${flagStr}</div>
+          </div>
+        </div>
+      </div>`;
+  }
+
+  // Full update command
+  if (outdated.length) {
+    const allCmd = 'npm install ' + outdated.map(p => `${p.name}@${p.latestVersion}`).join(' ') + flagStr;
+    html += `
+      <div class="cmd-section">
+        <h3>⚡ Todo en un solo comando</h3>
+        <div class="cmd-block">
+          <div class="cmd-header"><span>bash — actualiza todos a la vez</span><button class="cmd-copy" onclick="copyText(this, \`${escHtml(allCmd)}\`)">Copiar</button></div>
+          <div class="cmd-body">${formatCmd(allCmd)}</div>
+        </div>
+      </div>`;
+  }
+
+  cont.innerHTML = html;
+}
+
+function formatCmd(cmd) {
+  return cmd
+    .replace(/--legacy-peer-deps|--force/g, m => `<span class="cmd-flag">${m}</span>`)
+    .replace(/@[\d^~>=<.*]+/g, m => `<span class="cmd-ver">${m}</span>`);
+}
+
+function escHtml(str) {
+  return str.replace(/`/g, '\\`').replace(/\$/g, '\\$');
+}
+
+function renderExport() {
+  buildJsonPreview(state.exportMode);
+}
+
+function selectExport(mode, el) {
+  state.exportMode = mode;
+  document.querySelectorAll('.export-card').forEach(c => c.classList.remove('selected'));
+  el.classList.add('selected');
+  buildJsonPreview(mode);
+}
+
+function buildJsonPreview(mode) {
+  if (!state.rawJson) return;
+
+  const json = JSON.parse(JSON.stringify(state.rawJson));
+
+  if (mode === 'updated' || mode === 'overrides') {
+    // Update versions in place
+    state.packages.forEach(pkg => {
+      if (pkg.status === 'outdated' && pkg.latestVersion !== '?') {
+        if (!pkg.isDev && json.dependencies && json.dependencies[pkg.name] !== undefined) {
+          json.dependencies[pkg.name] = pkg.latestVersion;
+        }
+        if (pkg.isDev && json.devDependencies && json.devDependencies[pkg.name] !== undefined) {
+          json.devDependencies[pkg.name] = pkg.latestVersion;
+        }
+      }
+    });
+
+    if (mode === 'overrides' && state.overrides.length) {
+      json.overrides = state.overrides.reduce((acc, o) => {
+        if (!o.isGeneric || o.severity !== 'low') acc[o.name] = o.fixVersion;
+        return acc;
+      }, {});
+    }
+  }
+
+  if (mode === 'latest') {
+    state.packages.forEach(pkg => {
+      if (pkg.latestVersion && pkg.latestVersion !== '?') {
+        if (!pkg.isDev && json.dependencies && json.dependencies[pkg.name] !== undefined) {
+          json.dependencies[pkg.name] = pkg.latestVersion;
+        }
+        if (pkg.isDev && json.devDependencies && json.devDependencies[pkg.name] !== undefined) {
+          json.devDependencies[pkg.name] = pkg.latestVersion;
+        }
+      }
+    });
+  }
+
+  state.currentExportJson = json;
+  const pretty = JSON.stringify(json, null, 2);
+  document.getElementById('jsonPreview').innerHTML = syntaxHighlight(pretty);
+}
+
+function syntaxHighlight(json) {
+  return json
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"([^"]+)":/g, '<span class="jk">"$1"</span>:')
+    .replace(/: "([^"]+)"/g, ': <span class="js">"$1"</span>')
+    .replace(/: (\d+)/g, ': <span class="jv">$1</span>');
+}
+
+function downloadJson() {
+  if (!state.currentExportJson) { toast('Selecciona un modo de exportación'); return; }
+  const blob = new Blob([JSON.stringify(state.currentExportJson, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'package.json';
+  a.click();
+  toast('✓ package.json descargado');
+}
+
+function copyJson() {
+  if (!state.currentExportJson) return;
+  copyText(null, JSON.stringify(state.currentExportJson, null, 2));
+}
+
+// ─── FILTERS ─────────────────────────────────────────────────────────────
+function setFilter(type, el) {
+  currentFilter = type;
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  el.classList.add('active');
+  applyFilters();
+}
+
+function filterSearch(val) {
+  currentSearch = val.toLowerCase();
+  applyFilters();
+}
+
+function applyFilters() {
+  const rows = document.querySelectorAll('#depsTableBody tr[data-name]');
+  rows.forEach(row => {
+    const name = (row.dataset.name || '').toLowerCase();
+    const type = row.dataset.type;
+    const isAngular = row.dataset.angular === 'true';
+    const isExcluded = row.dataset.excluded === 'true';
+
+    const matchSearch = !currentSearch || name.includes(currentSearch);
+    const matchFilter =
+      currentFilter === 'all' ||
+      (currentFilter === 'angular' && isAngular && !isExcluded) ||
+      (currentFilter === 'dev' && type === 'dev' && !isExcluded) ||
+      (currentFilter === 'prod' && type === 'prod' && !isExcluded) ||
+      (currentFilter === 'excluded' && isExcluded);
+
+    row.style.display = matchSearch && matchFilter ? '' : 'none';
+  });
+}
+
+// ─── TABS ─────────────────────────────────────────────────────────────────
+function showTab(name) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+
+  // Map tab name to panel id
+  const panelId = name === 'all' ? 'panel-all' :
+    name === 'outdated' ? 'panel-outdated' :
+    name === 'overrides' ? 'panel-overrides' :
+    name === 'commands' ? 'panel-commands' : 'panel-export';
+
+  document.getElementById(panelId).classList.add('active');
+  event.currentTarget.classList.add('active');
+}
+
+// ─── UTILS ───────────────────────────────────────────────────────────────
+function copyText(btn, text) {
+  navigator.clipboard.writeText(text).then(() => {
+    toast('✓ Copiado al portapapeles');
+    if (btn) {
+      btn.textContent = '✓ Copiado';
+      btn.classList.add('copied');
+      setTimeout(() => { btn.textContent = 'Copiar'; btn.classList.remove('copied'); }, 2000);
+    }
+  });
+}
+
+function toast(msg, type = 'ok') {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.style.borderLeftColor = type === 'danger' ? 'var(--danger)' : 'var(--ok)';
+  t.style.color = type === 'danger' ? 'var(--danger)' : 'var(--ok)';
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 3000);
+}
+
+function resetTool() {
+  state = { rawJson: null, packages: [], overrides: [], exportMode: 'updated', excludedPackages: [], existingOverrides: {}, auditResults: null };
+  document.getElementById('dropZone').style.display = '';
+  document.getElementById('configBar').classList.remove('visible');
+  document.getElementById('summaryGrid').classList.remove('visible');
+  document.getElementById('tabs').classList.remove('visible');
+  document.getElementById('progressBar').classList.remove('visible');
+  document.getElementById('fileName').textContent = '';
+  document.getElementById('fileInput').value = '';
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.getElementById('panel-all').classList.add('active');
+  document.querySelectorAll('.tab').forEach((t, i) => { t.classList.toggle('active', i === 0); });
+  document.getElementById('depsTableBody').innerHTML = '<tr><td colspan="6"><div class="empty">Carga un package.json para comenzar</div></td></tr>';
+  document.getElementById('btnText').textContent = '🔍 Analizar';
+}
+</script>
+</body>
+</html>

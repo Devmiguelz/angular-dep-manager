@@ -1257,26 +1257,61 @@ async function detectOverrides() {
     }
 
     // ── v7+ format ───────────────────────────────────────────────────────
+    // Collect all v7 vulns first, then resolve fix versions from npm registry
+    const v7pending = [];
     for (const [pkgName, vuln] of Object.entries(vulnerabilities)) {
       if (added.has(pkgName)) continue;
       added.add(pkgName);
 
       const via = Array.isArray(vuln.via) ? vuln.via.filter(v => typeof v === 'object') : [];
       const firstVia = via[0] || {};
-      const fixVersion = vuln.fixAvailable?.version
-        ? `>=${vuln.fixAvailable.version}`
-        : (vuln.fixAvailable ? 'latest' : 'sin-fix-disponible');
 
-      state.overrides.push({
+      // fixAvailable.version = exact version npm found; fixAvailable=true (no version) = needs lookup
+      let fixVersion = null;
+      if (vuln.fixAvailable && typeof vuln.fixAvailable === 'object' && vuln.fixAvailable.version) {
+        fixVersion = vuln.fixAvailable.version; // exact — no need for registry lookup
+      } else if (vuln.fixAvailable === true) {
+        fixVersion = null; // needs npm registry lookup
+      } else {
+        fixVersion = 'SIN-FIX'; // unfixable
+      }
+
+      v7pending.push({
         name: pkgName,
         currentVersion: nonExcluded.find(p => p.name === pkgName)?.currentVersion || '?',
         fixVersion,
+        needsLookup: fixVersion === null,
         reason: firstVia.title || `Vulnerabilidad en ${pkgName}`,
         severity: vuln.severity || 'moderate',
         cve: firstVia.cves?.join(', ') || null,
         source: 'npm-audit-file',
-        url: firstVia.url || null
+        url: firstVia.url || null,
+        vulnRange: vuln.range || null
       });
+    }
+
+    // Resolve missing fix versions from npm registry in parallel
+    document.getElementById('progressStatus').textContent = 'Resolviendo versiones de fix desde npm...';
+    const needLookup = v7pending.filter(p => p.needsLookup);
+    if (needLookup.length) {
+      await Promise.all(needLookup.map(async entry => {
+        try {
+          const info = await fetchNpmInfo(entry.name);
+          if (info && info['dist-tags'] && info['dist-tags'].latest) {
+            entry.fixVersion = info['dist-tags'].latest;
+          } else {
+            entry.fixVersion = 'SIN-FIX';
+          }
+        } catch {
+          entry.fixVersion = 'SIN-FIX';
+        }
+      }));
+    }
+
+    // Push resolved entries to state.overrides
+    for (const entry of v7pending) {
+      const { needsLookup, vulnRange, ...override } = entry;
+      state.overrides.push(override);
     }
   }
 
@@ -1406,7 +1441,11 @@ function renderOverrides() {
   const recommendedBlock = {};
   // Merge existing + new suggestions
   Object.assign(recommendedBlock, existing);
-  newSuggestions.forEach(o => { recommendedBlock[o.name] = o.fixVersion; });
+  newSuggestions.forEach(o => {
+    if (o.fixVersion && o.fixVersion !== 'SIN-FIX') {
+      recommendedBlock[o.name] = o.fixVersion;
+    }
+  });
 
   const overridesJson = JSON.stringify(recommendedBlock, null, 2);
 
@@ -1476,7 +1515,7 @@ function renderOverrideCard(o, applied) {
       </div>
       <div class="override-body">
         <p>Versión actual: <code style="color:var(--warn)">${o.currentVersion}</code>
-           &nbsp;→&nbsp; Fix: <code style="color:var(--ok)">${o.fixVersion}</code>
+           &nbsp;→&nbsp; Fix: <code style="color:var(--ok)">${o.fixVersion === 'SIN-FIX' ? '⚠ sin fix disponible' : o.fixVersion}</code>
            ${applied ? `&nbsp;<span style="font-size:10px;color:var(--ok)">(ya en tu package.json: "${state.existingOverrides[o.name]}")</span>` : ''}
         </p>
         <div class="json-block">
@@ -1536,7 +1575,7 @@ function renderCommands() {
 
   // Always show overrides command if applicable
   if (state.overrides.length) {
-    const overridesBlock = state.overrides.reduce((acc, o) => { acc[o.name] = o.fixVersion; return acc; }, {});
+    const overridesBlock = state.overrides.reduce((acc, o) => { if (o.fixVersion && o.fixVersion !== 'SIN-FIX') acc[o.name] = o.fixVersion; return acc; }, {});
     const overridesStr = JSON.stringify(overridesBlock, null, 2);
     html += `
       <div class="cmd-section">
@@ -1749,7 +1788,7 @@ function buildAnalysisReport() {
         cve:            o.cve || null
       })),
       packageJsonBlock: newOverrides.length
-        ? newOverrides.reduce((acc, o) => { acc[o.name] = o.fixVersion; return acc; }, {})
+        ? newOverrides.filter(o => o.fixVersion && o.fixVersion !== 'SIN-FIX').reduce((acc, o) => { acc[o.name] = o.fixVersion; return acc; }, {})
         : null
     },
 

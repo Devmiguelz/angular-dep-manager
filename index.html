@@ -697,13 +697,13 @@
     </div>
 
     <!-- Zone 2: audit.json -->
-    <div class="upload-zone" id="auditDropZone" onclick="document.getElementById('auditFileInput').click()" style="padding:36px 24px;border-color:rgba(255,171,64,0.3)">
+    <div class="upload-zone" id="auditDropZone" style="padding:36px 24px;border-color:rgba(255,171,64,0.3)">
       <span class="upload-icon" style="font-size:36px">🛡️</span>
       <h2 style="font-size:17px">audit.json <span style="color:var(--text3);font-size:12px;font-weight:400">opcional</span></h2>
       <p style="color:var(--text2);margin-bottom:8px">Corre este comando en la raíz de tu proyecto:</p>
-      <div style="display:flex;align-items:center;gap:8px;background:var(--bg);border:1px solid var(--border2);border-radius:6px;padding:7px 12px;margin:0 auto 12px;width:fit-content" onclick="event.stopPropagation()">
+      <div style="display:flex;align-items:center;gap:8px;background:var(--bg);border:1px solid var(--border2);border-radius:6px;padding:7px 12px;margin:0 auto 12px;width:fit-content;position:inherit;" onclick="event.stopPropagation();event.preventDefault()">
         <code style="font-family:var(--mono);font-size:11px;color:var(--warn)">npm audit --json &gt; audit.json</code>
-        <button onclick="event.stopPropagation();copyAuditCmd(this)" style="background:transparent;border:1px solid var(--border2);border-radius:3px;padding:2px 8px;font-family:var(--mono);font-size:10px;color:var(--text3);cursor:pointer">📋</button>
+        <button onclick="event.stopPropagation();event.preventDefault();copyAuditCmd(this)" style="background:transparent;border:1px solid var(--border2);border-radius:3px;padding:2px 8px;font-family:var(--mono);font-size:10px;color:var(--text3);cursor:pointer">📋</button>
       </div>
       <button class="upload-btn" style="background:rgba(255,171,64,0.1);border:1px solid rgba(255,171,64,0.4);color:var(--warn)" onclick="event.stopPropagation();document.getElementById('auditFileInput').click()">Cargar audit.json</button>
       <input type="file" id="auditFileInput" accept=".json" onchange="handleAuditFileSelect(event)">
@@ -941,6 +941,10 @@ dropZone.addEventListener('drop', e => {
 });
 
 const auditDropZone = document.getElementById('auditDropZone');
+auditDropZone.addEventListener('click', e => {
+  if (e.target.closest('button') || e.target.closest('code') || e.target.tagName === 'INPUT') return;
+  document.getElementById('auditFileInput').click();
+});
 auditDropZone.addEventListener('dragover', e => { e.preventDefault(); auditDropZone.classList.add('dragover'); });
 auditDropZone.addEventListener('dragleave', () => auditDropZone.classList.remove('dragover'));
 auditDropZone.addEventListener('drop', e => {

@@ -1,3 +1,43 @@
+document.addEventListener('contextmenu', e => e.preventDefault());
+
+/* BLOQUEAR TECLAS */
+document.onkeydown = function(e) {
+    if (e.key === "F12") return false;
+    if (e.ctrlKey && e.shiftKey && e.key === "I") return false;
+    if (e.ctrlKey && e.shiftKey && e.key === "J") return false;
+    if (e.ctrlKey && e.shiftKey && e.key === "C") return false;
+    if (e.ctrlKey && e.key === "u") return false;
+};
+
+/* BLOQUEAR COPIAR */
+document.addEventListener('copy', function(e) {
+    e.preventDefault();
+});
+
+/* DETECTAR DEVTOOLS */
+function detectDevTools() {
+    const threshold = 160;
+    if (
+        window.outerWidth - window.innerWidth > threshold ||
+        window.outerHeight - window.innerHeight > threshold
+    ) {
+        document.body.innerHTML = "";
+        document.body.style.background = "#000";
+    }
+}
+
+setInterval(detectDevTools, 1000);
+
+/* DETECTAR INSPECT ELEMENT */
+setInterval(function(){
+    const start = new Date();
+    debugger;
+    const end = new Date();
+    if(end - start > 100){
+        document.body.innerHTML = "";
+    }
+},1000);
+
 
 // ─── STATE ────────────────────────────────────────────────────────────────
 let state = {

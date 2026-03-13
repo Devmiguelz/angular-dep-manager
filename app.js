@@ -97,7 +97,7 @@ function loadFile(file) {
       state.rawJson = json;
       const count = countDeps(json);
       document.getElementById('fileName').textContent = file.name;
-      // Show status inside zone, hide zone border effect
+
       document.getElementById('pkgStatus').style.display = 'block';
       document.getElementById('pkgStatusName').textContent = `${file.name} · ${count} deps`;
       document.getElementById('dropZone').style.borderColor = 'var(--ok)';
@@ -120,7 +120,7 @@ function loadAuditFile(file) {
   reader.onload = e => {
     try {
       const json = JSON.parse(e.target.result);
-      // Validate it looks like npm audit output
+
       if (!json.advisories && !json.vulnerabilities) {
         toast('❌ No parece un npm audit --json válido', 'danger');
         return;
@@ -161,7 +161,7 @@ function isExcluded(pkgName) {
   const excluded = getExcludedScopes();
   if (!excluded.length) return false;
   return excluded.some(scope => {
-    // Match exact scope prefix: @bancolombia/ or full name if no slash
+
     const normalized = scope.startsWith('@') ? scope : '@' + scope;
     return pkgName.toLowerCase().startsWith(normalized + '/') || pkgName.toLowerCase() === normalized;
   });
@@ -178,14 +178,14 @@ async function startAnalysis() {
   const majorVersion = document.getElementById('majorVersion').value;
   const json = state.rawJson;
 
-  // Collect all packages — mark excluded ones
+
   const allPkgs = [];
   for (const [name, ver] of Object.entries(json.dependencies || {}))
     allPkgs.push({ name, currentVersion: cleanVer(ver), isDev: false, excluded: isExcluded(name) });
   for (const [name, ver] of Object.entries(json.devDependencies || {}))
     allPkgs.push({ name, currentVersion: cleanVer(ver), isDev: true, excluded: isExcluded(name) });
 
-  // Show progress — only count non-excluded
+
   const toAnalyze = allPkgs.filter(p => !p.excluded);
   const excluded = allPkgs.filter(p => p.excluded);
 
@@ -196,7 +196,7 @@ async function startAnalysis() {
   state.excludedPackages = excluded;
   let done = 0;
 
-  // Add excluded packages to state as-is (no npm lookup)
+
   excluded.forEach(pkg => {
     state.packages.push({
       name: pkg.name,
@@ -210,7 +210,7 @@ async function startAnalysis() {
     });
   });
 
-  // Fetch in batches of 8
+
   const BATCH = 8;
   for (let i = 0; i < toAnalyze.length; i += BATCH) {
     const batch = toAnalyze.slice(i, i + BATCH);
@@ -247,7 +247,7 @@ async function startAnalysis() {
     }));
   }
 
-  // Run npm audit API
+
   document.getElementById('progressStatus').textContent = 'Consultando npm audit...';
   await detectOverrides();
 
@@ -288,7 +288,7 @@ function getBestVersion(info, pkgName, majorVersion) {
   if (majorVersion === 'latest') return distTags.latest || '?';
   if (majorVersion === 'any') return distTags.latest || '?';
 
-  // Filter versions matching the major
+
   const major = parseInt(majorVersion);
   const versions = Object.keys(info.versions || {});
   const matching = versions.filter(v => {
@@ -298,7 +298,7 @@ function getBestVersion(info, pkgName, majorVersion) {
 
   if (!matching.length) return distTags.latest || '?';
 
-  // Return highest matching
+
   matching.sort((a, b) => semverCompare(b, a));
   return matching[0];
 }
@@ -322,7 +322,6 @@ function compareVersions(current, latest) {
 // ─── OVERRIDE DETECTION — REAL npm audit API + CVE database ──────────────
 // CVE database built from real overrides observed in projects
 const KNOWN_VULNS = [
-  // From your real projects
   { name: 'ajv',                   fixVersion: '8.18.0',  severity: 'high',     cve: null,               reason: 'Schema validation bypass — observado en tus proyectos' },
   { name: 'rollup',                fixVersion: '4.59.0',  severity: 'high',     cve: 'CVE-2024-47068',   reason: 'Prototype pollution en bundler' },
   { name: 'serialize-javascript',  fixVersion: '7.0.3',   severity: 'high',     cve: 'CVE-2020-7660',    reason: 'XSS / code injection en serialización' },
@@ -335,7 +334,6 @@ const KNOWN_VULNS = [
   { name: 'minimatch',             fixVersion: '10.2.4',  severity: 'high',     cve: 'CVE-2022-3517',    reason: 'ReDoS en glob matching' },
   { name: 'test-exclude',          fixVersion: '8.0.0',   severity: 'low',      cve: null,               reason: 'Fix de dependencias transitivas' },
   { name: 'semver',                fixVersion: '7.5.4',   severity: 'high',     cve: 'CVE-2022-25883',   reason: 'ReDoS en parsing de versiones' },
-  // Classic CVEs
   { name: 'braces',                fixVersion: '3.0.3',   severity: 'high',     cve: 'CVE-2024-4068',    reason: 'ReDoS vulnerability' },
   { name: 'word-wrap',             fixVersion: '1.2.4',   severity: 'moderate', cve: 'CVE-2023-26115',   reason: 'ReDoS vulnerability' },
   { name: 'tough-cookie',          fixVersion: '4.1.3',   severity: 'moderate', cve: 'CVE-2023-26136',   reason: 'Prototype pollution' },
@@ -351,24 +349,47 @@ const KNOWN_VULNS = [
   { name: 'axios',                 fixVersion: '1.7.4',   severity: 'moderate', cve: 'CVE-2024-39338',   reason: 'SSRF en server-side requests' },
 ];
 
+// ─── NPM AUDIT VIA SERVER ─────────────────────────────────────────────────
+async function fetchServerAudit() {
+  if (typeof STATS_URL === 'undefined' || !state.rawJson) return null;
+  try {
+    const res = await fetch(`${STATS_URL}/audit`, {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json', 'x-secret-key': _SECRET_KEY },
+      body:    JSON.stringify(state.rawJson)
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return await res.json();
+  } catch (err) {
+    toast('⚠ npm audit no disponible — usando base CVE local', 'warn');
+    return null;
+  }
+}
+
 async function detectOverrides() {
   state.overrides = [];
   state.auditResults = null;
 
   const nonExcluded = state.packages.filter(p => !p.excluded);
 
-  // ── 1. Parse loaded audit.json (from npm audit --json > audit.json) ────
+  // ── 0. Intentar audit via server (si no hay audit.json cargado manualmente) ──
+  if (!state.auditJson) {
+    document.getElementById('progressStatus').textContent = 'Consultando npm audit API...';
+    const serverAudit = await fetchServerAudit();
+    if (serverAudit) {
+      state.auditJson = serverAudit;
+      state._auditFromServer = true;
+    }
+  }
+
   if (state.auditJson) {
     const auditData = state.auditJson;
     state.auditResults = auditData;
     const added = new Set();
 
-    // npm audit v6 format: { advisories: { "id": { module_name, ... } } }
-    // npm audit v7+ format: { vulnerabilities: { "name": { ... } } }
     const advisories = auditData.advisories || {};
     const vulnerabilities = auditData.vulnerabilities || {};
 
-    // ── v6 format ────────────────────────────────────────────────────────
     for (const advisory of Object.values(advisories)) {
       const pkgName = advisory.module_name;
       if (!pkgName || added.has(pkgName)) continue;
@@ -390,8 +411,6 @@ async function detectOverrides() {
       });
     }
 
-    // ── v7+ format ───────────────────────────────────────────────────────
-    // Collect all v7 vulns first, then resolve fix versions from npm registry
     const v7pending = [];
     for (const [pkgName, vuln] of Object.entries(vulnerabilities)) {
       if (added.has(pkgName)) continue;
@@ -400,14 +419,13 @@ async function detectOverrides() {
       const via = Array.isArray(vuln.via) ? vuln.via.filter(v => typeof v === 'object') : [];
       const firstVia = via[0] || {};
 
-      // fixAvailable.version = exact version npm found; fixAvailable=true (no version) = needs lookup
       let fixVersion = null;
       if (vuln.fixAvailable && typeof vuln.fixAvailable === 'object' && vuln.fixAvailable.version) {
-        fixVersion = vuln.fixAvailable.version; // exact — no need for registry lookup
+        fixVersion = vuln.fixAvailable.version;
       } else if (vuln.fixAvailable === true) {
-        fixVersion = null; // needs npm registry lookup
+        fixVersion = null;
       } else {
-        fixVersion = 'SIN-FIX'; // unfixable
+        fixVersion = 'SIN-FIX';
       }
 
       v7pending.push({
@@ -424,7 +442,6 @@ async function detectOverrides() {
       });
     }
 
-    // Resolve missing fix versions from npm registry in parallel
     document.getElementById('progressStatus').textContent = 'Resolviendo versiones de fix desde npm...';
     const needLookup = v7pending.filter(p => p.needsLookup);
     if (needLookup.length) {
@@ -442,27 +459,24 @@ async function detectOverrides() {
       }));
     }
 
-    // Push resolved entries to state.overrides
     for (const entry of v7pending) {
       const { needsLookup, vulnRange, ...override } = entry;
       state.overrides.push(override);
     }
   }
 
-  // ── 2. Layer: local CVE database (only if no audit file loaded) ────────
   const auditNames = new Set(state.overrides.map(o => o.name));
   const allDepNames = new Set(nonExcluded.map(p => p.name));
 
   for (const vuln of KNOWN_VULNS) {
-    if (auditNames.has(vuln.name)) continue;       // already reported by audit
-    if (!allDepNames.has(vuln.name)) continue;     // not in this project
+    if (auditNames.has(vuln.name)) continue;
+    if (!allDepNames.has(vuln.name)) continue;
 
     const pkg = nonExcluded.find(p => p.name === vuln.name);
     if (!pkg) continue;
 
-    // Only suggest if current version is below the fix version
     const fixClean = vuln.fixVersion.replace(/[>=<^~]/g, '');
-    if (semverCompare(pkg.currentVersion, fixClean) >= 0) continue; // already fixed
+    if (semverCompare(pkg.currentVersion, fixClean) >= 0) continue;
 
     state.overrides.push({
       name: vuln.name,
@@ -475,15 +489,12 @@ async function detectOverrides() {
     });
   }
 
-  // ── 3. Also check existing overrides block in package.json ─────────────
-  // Show which ones are already applied vs which ones are new suggestions
   if (state.rawJson.overrides) {
     state.existingOverrides = state.rawJson.overrides;
   } else {
     state.existingOverrides = {};
   }
 
-  // Sort by severity
   const severityOrder = { high: 0, moderate: 1, low: 2 };
   state.overrides.sort((a, b) =>
     (severityOrder[a.severity] ?? 3) - (severityOrder[b.severity] ?? 3)
@@ -497,20 +508,19 @@ function renderAll() {
   const outdated = analyzable.filter(p => p.status === 'outdated');
   const excl = pkgs.filter(p => p.excluded || p.status === 'excluded');
 
-  // Summary — only show analyzed (not excluded) packages
   document.getElementById('sumTotal').textContent = analyzable.length;
   document.getElementById('sumOk').textContent = analyzable.filter(p => p.status === 'ok').length;
   document.getElementById('sumOutdated').textContent = outdated.length;
   document.getElementById('sumVuln').textContent = state.overrides.filter(o => !state.existingOverrides?.[o.name]).length;
   document.getElementById('summaryGrid').classList.add('visible');
+  const auditBtn = document.getElementById('auditBtn');
+  if (auditBtn) auditBtn.style.display = 'inline-flex';
 
-  // Badge counts
   document.getElementById('tabAllBadge').textContent = pkgs.length + (excl.length ? ` (${excl.length} excl.)` : '');
   document.getElementById('tabOutdatedBadge').textContent = outdated.length;
   document.getElementById('tabOverridesBadge').textContent = state.overrides.length;
   document.getElementById('tabs').classList.add('visible');
 
-  // Tables: show all packages (excluded will appear dimmed)
   renderTable('depsTableBody', pkgs);
   renderTable('outdatedTableBody', outdated);
   renderOverrides();
@@ -565,15 +575,12 @@ function renderOverrides() {
     return;
   }
 
-  // Separate: already in package.json vs new suggestions
   const existing = state.existingOverrides || {};
   const alreadyApplied = state.overrides.filter(o => existing[o.name]);
   const newSuggestions = state.overrides.filter(o => !existing[o.name]);
   const auditCount = state.overrides.filter(o => o.source === 'npm-audit').length;
 
-  // Build the complete recommended overrides block (new only)
   const recommendedBlock = {};
-  // Merge existing + new suggestions
   Object.assign(recommendedBlock, existing);
   newSuggestions.forEach(o => {
     if (o.fixVersion && o.fixVersion !== 'SIN-FIX') {
@@ -672,8 +679,6 @@ function renderCommands() {
   }
 
   const flagStr = flag ? ` ${flag}` : '';
-
-  // Group by angular vs others
   const angularPkgs = outdated.filter(p => p.isAngular);
   const otherPkgs = outdated.filter(p => !p.isAngular);
 
@@ -707,7 +712,6 @@ function renderCommands() {
     html += '<div class="empty" style="padding:30px">✓ Todo al día — no hay comandos de actualización pendientes</div>';
   }
 
-  // Always show overrides command if applicable
   if (state.overrides.length) {
     const overridesBlock = state.overrides.reduce((acc, o) => { if (o.fixVersion && o.fixVersion !== 'SIN-FIX') acc[o.name] = o.fixVersion; return acc; }, {});
     const overridesStr = JSON.stringify(overridesBlock, null, 2);
@@ -727,7 +731,6 @@ function renderCommands() {
       </div>`;
   }
 
-  // Full update command
   if (outdated.length) {
     const allCmd = 'npm install ' + outdated.map(p => `${p.name}@${p.latestVersion}`).join(' ') + flagStr;
     html += `
@@ -770,7 +773,6 @@ function buildJsonPreview(mode) {
   const json = JSON.parse(JSON.stringify(state.rawJson));
 
   if (mode === 'updated' || mode === 'overrides') {
-    // Update versions in place
     state.packages.forEach(pkg => {
       if (pkg.status === 'outdated' && pkg.latestVersion !== '?') {
         if (!pkg.isDev && json.dependencies && json.dependencies[pkg.name] !== undefined) {
@@ -873,7 +875,7 @@ function buildAnalysisReport() {
       isAngular:      p.isAngular,
       currentVersion: p.currentVersion,
       latestVersion:  p.latestVersion,
-      status:         p.status   // "ok" | "outdated" | "error"
+      status:         p.status
     })),
 
     excluded: excluded.map(p => ({
@@ -1007,7 +1009,6 @@ function showTab(name) {
   document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
   document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
 
-  // Map tab name to panel id
   const panelId = name === 'all' ? 'panel-all' :
     name === 'outdated' ? 'panel-outdated' :
     name === 'overrides' ? 'panel-overrides' :
@@ -1040,7 +1041,6 @@ function toast(msg, type = 'ok') {
 
 function resetTool() {
   state = { rawJson: null, auditJson: null, packages: [], overrides: [], exportMode: 'updated', excludedPackages: [], existingOverrides: {}, auditResults: null };
-  // Reset audit zone UI
   const azEl = document.getElementById('auditStatus');
   if (azEl) azEl.style.display = 'none';
   const amEl = document.getElementById('auditMissing');
@@ -1063,4 +1063,31 @@ function resetTool() {
   document.querySelectorAll('.tab').forEach((t, i) => { t.classList.toggle('active', i === 0); });
   document.getElementById('depsTableBody').innerHTML = '<tr><td colspan="6"><div class="empty">Carga un package.json para comenzar</div></td></tr>';
   document.getElementById('btnText').textContent = '🔍 Analizar';
+  state._auditFromServer = false;
+  const auditBtnR = document.getElementById('auditBtn');
+  if (auditBtnR) auditBtnR.style.display = 'none';
+}
+
+// ─── RE-AUDIT MANUAL ────────────────────────────────────────────────────────────────
+async function reAudit() {
+  if (!state.rawJson || !state.packages.length) {
+    toast('Analiza un package.json primero', 'warn');
+    return;
+  }
+  const btn = document.getElementById('auditBtn');
+  if (btn) { btn.disabled = true; btn.textContent = '⧑ Auditando...'; }
+
+  // Si el audit anterior vino del server, limpiar para forzar re-consulta
+  if (state._auditFromServer) state.auditJson = null;
+
+  document.getElementById('progressBar').classList.add('visible');
+  document.getElementById('progressStatus').textContent = 'Consultando npm audit API...';
+
+  await detectOverrides();
+
+  document.getElementById('progressBar').classList.remove('visible');
+  renderAll();
+  toast('✓ Auditoría completada');
+
+  if (btn) { btn.disabled = false; btn.textContent = '🛡️ Re-auditar'; }
 }

@@ -23,7 +23,7 @@
     <div class="header-meta">
       <span class="live">npm registry live</span><br>
       <span id="currentDate"></span><br>
-      <span class="dev-trigger" style="color:var(--text2)" onclick="openDevModal()">Developer: devMiguelz | Version 1.1.0</span><br>
+      <span class="dev-trigger" style="color:var(--text2)" onclick="openDevModal()">Developer: devMiguelz | Version 1.1.1</span><br>
       <span id="fileName" style="color:var(--text3)"></span>
     </div>
   </header>
@@ -103,6 +103,7 @@
       <span class="spinner" id="btnSpinner" style="display:none"></span>
       <span id="btnText">🔍 Analizar</span>
     </button>
+    <button class="btn-secondary" id="auditBtn" onclick="reAudit()" style="display:none">🛡️ Re-auditar</button>
     <button class="btn-secondary" onclick="resetTool()">↺ Reset</button>
   </div>
 

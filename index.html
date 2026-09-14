@@ -33,17 +33,17 @@
 
     <!-- Zone 1: package.json -->
     <div class="upload-zone" id="dropZone" onclick="document.getElementById('fileInput').click()" style="padding:36px 24px">
-      <span class="upload-icon" style="font-size:36px">📦</span>
+      <i data-lucide="package" class="upload-icon"></i>
       <h2 style="font-size:17px">package.json</h2>
       <p style="margin-bottom:12px">Requerido — arrastra o selecciona</p>
       <button class="upload-btn" onclick="event.stopPropagation();document.getElementById('fileInput').click()">Seleccionar</button>
       <input type="file" id="fileInput" accept=".json" onchange="handleFileSelect(event)">
-      <div id="pkgStatus" style="display:none;margin-top:12px;font-family:var(--mono);font-size:11px;color:var(--ok)">✓ <span id="pkgStatusName"></span></div>
+      <div id="pkgStatus" style="display:none;margin-top:12px;font-family:var(--mono);font-size:11px;color:var(--ok)"><i data-lucide="check" class="icon-inline"></i><span id="pkgStatusName"></span></div>
     </div>
 
     <!-- Zone 2: audit.json -->
     <div class="upload-zone" id="auditDropZone" style="padding:36px 24px;border-color:rgba(255,171,64,0.3)">
-      <span class="upload-icon" style="font-size:36px">🛡️</span>
+      <i data-lucide="shield" class="upload-icon"></i>
       <h2 style="font-size:17px">audit.json <span style="color:var(--text3);font-size:12px;font-weight:400">opcional</span></h2>
       <p style="color:var(--text2);margin-bottom:8px">Corre este comando en la raíz de tu proyecto:</p>
       <div style="display:flex;align-items:center;gap:8px;background:var(--bg);border:1px solid var(--border2);border-radius:6px;padding:7px 12px;margin:0 auto 12px;width:fit-content;position:inherit;" onclick="event.stopPropagation();event.preventDefault()">
@@ -52,7 +52,7 @@
       </div>
       <button class="upload-btn" style="background:rgba(255,171,64,0.1);border:1px solid rgba(255,171,64,0.4);color:var(--warn)" onclick="event.stopPropagation();document.getElementById('auditFileInput').click()">Cargar audit.json</button>
       <input type="file" id="auditFileInput" accept=".json" onchange="handleAuditFileSelect(event)">
-      <div id="auditStatus" style="display:none;margin-top:12px;font-family:var(--mono);font-size:11px;color:var(--warn)">✓ <span id="auditStatusName"></span> · <span id="auditStatusCount"></span></div>
+      <div id="auditStatus" style="display:none;margin-top:12px;font-family:var(--mono);font-size:11px;color:var(--warn)"><i data-lucide="check" class="icon-inline"></i><span id="auditStatusName"></span> · <span id="auditStatusCount"></span></div>
       <div id="auditMissing" style="margin-top:12px;font-family:var(--mono);font-size:10px;color:var(--text3)">Sin audit.json → usará base CVE local</div>
     </div>
 
@@ -104,7 +104,7 @@
       <span id="btnText">🔍 Analizar</span>
     </button>
     <button class="btn-secondary" id="auditBtn" onclick="reAudit()" style="display:none">🛡️ Re-auditar</button>
-    <button class="btn-secondary" onclick="resetTool()">↺ Reset</button>
+    <button class="btn-secondary" onclick="resetTool()"><i data-lucide="rotate-ccw"></i>Reset</button>
   </div>
 
   <!-- PROGRESS -->
@@ -153,7 +153,7 @@
       <button class="filter-btn" onclick="setFilter('angular', this)">@angular</button>
       <button class="filter-btn" onclick="setFilter('dev', this)">devDependencies</button>
       <button class="filter-btn" onclick="setFilter('prod', this)">dependencies</button>
-      <button class="filter-btn" onclick="setFilter('excluded', this)">🔒 Excluidos</button>
+      <button class="filter-btn" onclick="setFilter('excluded', this)"><i data-lucide="lock" class="icon-inline"></i>Excluidos</button>
       <input class="search-input" type="text" placeholder="buscar paquete..." oninput="filterSearch(this.value)" id="searchInput">
     </div>
     <div style="overflow-x:auto; border: 1px solid var(--border); border-radius:8px;">
@@ -213,17 +213,17 @@
   <div class="panel" id="panel-export">
     <div class="export-options" id="exportOptions">
       <div class="export-card selected" onclick="selectExport('updated', this)">
-        <div class="ico">🔄</div>
+        <i data-lucide="refresh-cw" class="ico"></i>
         <h4>Solo actualizados</h4>
         <p>Respeta tu major version configurada</p>
       </div>
       <div class="export-card" onclick="selectExport('latest', this)">
-        <div class="ico">🚀</div>
+        <i data-lucide="rocket" class="ico"></i>
         <h4>Última versión Angular</h4>
         <p>Actualiza todo al latest disponible</p>
       </div>
       <div class="export-card" onclick="selectExport('overrides', this)">
-        <div class="ico">🛡️</div>
+        <i data-lucide="shield" class="ico"></i>
         <h4>Con overrides aplicados</h4>
         <p>Incluye bloque overrides para vulnerabilidades</p>
       </div>
@@ -232,22 +232,22 @@
       <span style="color:var(--text3);font-size:12px">Selecciona un modo de exportación</span>
     </div>
     <div style="display:flex;gap:12px">
-      <button class="btn-primary" onclick="downloadJson()">⬇ Descargar package.json</button>
-      <button class="btn-secondary" onclick="copyJson()">📋 Copiar JSON</button>
+      <button class="btn-primary" onclick="downloadJson()"><i data-lucide="download"></i>Descargar package.json</button>
+      <button class="btn-secondary" onclick="copyJson()"><i data-lucide="clipboard"></i>Copiar JSON</button>
     </div>
 
     <div style="margin-top:32px;padding-top:24px;border-top:1px solid var(--border)">
       <div style="font-family:var(--mono);font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:1px;margin-bottom:14px">
-        📊 Reporte de análisis
+        <i data-lucide="bar-chart-3" class="icon-inline"></i>Reporte de análisis
       </div>
       <div style="background:var(--surface);border:1px solid var(--border);border-left:3px solid var(--info);border-radius:10px;padding:16px 20px;margin-bottom:14px;font-family:var(--mono);font-size:11px;color:var(--text2);line-height:2">
         Incluye: <span style="color:var(--text)">resumen</span> · <span style="color:var(--text)">tabla completa de dependencias</span> · <span style="color:var(--text)">actualizaciones disponibles</span> · <span style="color:var(--text)">overrides sugeridos</span> · <span style="color:var(--text)">comandos npm</span>
       </div>
       <div id="reportPreview" style="display:none;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:16px;font-family:var(--mono);font-size:11px;max-height:300px;overflow-y:auto;line-height:1.7;margin-bottom:14px;color:var(--text2)"></div>
       <div style="display:flex;gap:12px;flex-wrap:wrap">
-        <button class="btn-primary" onclick="downloadAnalysisReport()">⬇ Descargar analysis-report.json</button>
-        <button class="btn-secondary" onclick="previewReport()">👁 Vista previa</button>
-        <button class="btn-secondary" onclick="copyAnalysisReport()">📋 Copiar</button>
+        <button class="btn-primary" onclick="downloadAnalysisReport()"><i data-lucide="download"></i>Descargar analysis-report.json</button>
+        <button class="btn-secondary" onclick="previewReport()"><i data-lucide="eye"></i>Vista previa</button>
+        <button class="btn-secondary" onclick="copyAnalysisReport()"><i data-lucide="clipboard"></i>Copiar</button>
       </div>
     </div>
   </div>
@@ -259,7 +259,7 @@
   <div class="dev-modal-box">
     <div class="dev-modal-header">
       <div class="dev-modal-title">// <span>dev</span>_dashboard</div>
-      <button class="dev-modal-close" onclick="closeDevModal()">✕</button>
+      <button class="dev-modal-close" onclick="closeDevModal()"><i data-lucide="x"></i></button>
     </div>
 
     <!-- KPIs -->
@@ -301,8 +301,10 @@
 
 <!-- Scripts -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
 <script src="app.js"></script>
 <script src="dev-modal.js"></script>
 <script src="stats-client.js"></script>
+<script>lucide.createIcons();</script>
 </body>
 </html>
